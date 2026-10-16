@@ -20,7 +20,7 @@
   ],
   // Gizli değerler `wrangler secret` ile tanımlıdır: SESSION_SECRET, VAPID_PRIVATE_JWK
   "vars": {
-    "VAPID_PUBLIC_KEY": "",
+    "VAPID_PUBLIC_KEY": "BLPUNYixDblUxDhxIqAlBo9oF3PXOrXaDzk_1C3xUn6ptZvhv78nls3BReSl8RO2TeiI0W9mUMx4ZpA0lL9QQ88",
     "VAPID_SUBJECT": "https://turizm.tokmak.workers.dev"
   }
 }
