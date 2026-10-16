@@ -85,6 +85,9 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* .badge gibi display tanımlı öğelerde de hidden çalışsın */
+[hidden] { display: none !important; }
+
 button {
   font-family: var(--font);
   border: none;
@@ -658,7 +661,56 @@ button {
   font-size: 13px;
   color: var(--text-2);
   line-height: 1.5;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
+
+.ann-empty {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-3);
+  padding: 32px 16px;
+}
+
+/* Bildirim aboneliği kartı */
+.push-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.push-text { flex: 1; min-width: 0; }
+
+.push-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.push-desc {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.45;
+  margin-top: 2px;
+}
+
+.push-btn {
+  background: var(--primary);
+  color: #fff;
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+
+.push-btn:disabled { opacity: 0.5; cursor: default; }
+.push-btn.secondary { background: var(--surface-2); color: var(--text-1); }
 
 .ann-meta {
   display: flex;

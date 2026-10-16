@@ -1,11 +1,26 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "turizm",
+  "main": "src/worker.js",
   "compatibility_date": "2026-10-06",
   "observability": {
     "enabled": true
   },
   "assets": {
-    "directory": "./public"
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "turizm-db",
+      "database_id": "fbda94e6-aef4-41ff-9a89-fbd6fde23bf8",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // Gizli değerler `wrangler secret` ile tanımlıdır: SESSION_SECRET, VAPID_PRIVATE_JWK
+  "vars": {
+    "VAPID_PUBLIC_KEY": "",
+    "VAPID_SUBJECT": "https://turizm.tokmak.workers.dev"
   }
 }

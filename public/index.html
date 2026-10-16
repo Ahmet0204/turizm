@@ -219,40 +219,18 @@
     <!-- DUYURULAR SEKMESİ -->
     <section class="tab-panel" id="tab-announcements">
       <div class="scroll-content">
+        <!-- Bildirim aboneliği -->
+        <div class="push-card" id="pushCard" hidden>
+          <div class="push-text">
+            <div class="push-title">Bildirimler</div>
+            <div class="push-desc" id="pushDesc">Yeni duyurular yayınlandığında bildirim alın.</div>
+          </div>
+          <button class="push-btn" id="pushBtn" type="button">Aç</button>
+        </div>
+
+        <!-- Duyurular /api/announcements adresinden yüklenir -->
         <div class="ann-list" id="annList">
-          <div class="ann-item unread">
-            <div class="ann-dot"></div>
-            <div class="ann-content">
-              <div class="ann-title">Vize Sınav Programı Yayınlandı</div>
-              <div class="ann-body">2026-2027 Güz Yarıyılı vize sınav programı öğrenci bilgi sistemine işlenmiştir. Sınav tarihlerinizi OBS üzerinden kontrol edebilirsiniz.</div>
-              <div class="ann-meta">
-                <span class="ann-author">Öğrenci İşleri</span>
-                <span class="ann-date">15 Ekim 2026</span>
-              </div>
-            </div>
-          </div>
-          <div class="ann-item unread">
-            <div class="ann-dot"></div>
-            <div class="ann-content">
-              <div class="ann-title">Staj Başvuru Formu Güncellendi</div>
-              <div class="ann-body">Turizm İşletmeciliği staj başvuru formu güncellenmiştir. Yeni formu fakülte sekreterliğinden temin edebilirsiniz.</div>
-              <div class="ann-meta">
-                <span class="ann-author">Turizm Fakültesi</span>
-                <span class="ann-date">13 Ekim 2026</span>
-              </div>
-            </div>
-          </div>
-          <div class="ann-item">
-            <div class="ann-dot read"></div>
-            <div class="ann-content">
-              <div class="ann-title">Mezuniyet Töreni Tarihi Açıklandı</div>
-              <div class="ann-body">2025-2026 akademik yılı mezuniyet töreni 20 Kasım 2026 tarihinde gerçekleştirilecektir.</div>
-              <div class="ann-meta">
-                <span class="ann-author">Rektörlük</span>
-                <span class="ann-date">10 Ekim 2026</span>
-              </div>
-            </div>
-          </div>
+          <div class="ann-empty">Duyurular yükleniyor…</div>
         </div>
       </div>
     </section>
@@ -320,7 +298,7 @@
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
         </svg>
-        <span class="nav-badge">2</span>
+        <span class="nav-badge" id="annBadge" hidden></span>
       </div>
       <span class="nav-label">Duyurular</span>
     </button>

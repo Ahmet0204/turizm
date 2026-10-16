@@ -1,6 +1,6 @@
 /* ADYÜ Mobil PWA — Service Worker */
 
-const CACHE_NAME = 'adyu-mobil-v1';
+const CACHE_NAME = 'adyu-mobil-v2';
 const ASSETS = [
   '/',
   '/index.html',
@@ -34,6 +34,10 @@ self.addEventListener('fetch', event => {
   // Sadece GET isteklerini önbelleğe al
   if (event.request.method !== 'GET') return;
 
+  // API ve yönetici paneli her zaman ağdan gelsin
+  const { pathname } = new URL(event.request.url);
+  if (pathname.startsWith('/api/') || pathname.startsWith('/admin')) return;
+
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
@@ -54,7 +58,7 @@ self.addEventListener('fetch', event => {
   );
 });
 
-// Push Bildirimleri (ileride backend ile entegre edilecek)
+// Push Bildirimleri — yönetici panelinden gönderilir
 self.addEventListener('push', event => {
   const data = event.data?.json() ?? {};
   const title = data.title || 'ADYÜ Mobil';

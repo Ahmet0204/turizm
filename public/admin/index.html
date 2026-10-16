@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#8B1A1A">
+  <title>Yönetici Paneli</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+  <header class="bar">
+    <div class="bar-inner">
+      <div class="brand">
+        <div class="logo">A</div>
+        <div>
+          <div class="brand-title">Yönetici Paneli</div>
+          <div class="brand-sub" id="whoami">ADYÜ Mobil</div>
+        </div>
+      </div>
+      <button class="link-btn" id="logoutBtn" type="button" hidden>Çıkış</button>
+    </div>
+  </header>
+
+  <main class="wrap">
+
+    <!-- GİRİŞ -->
+    <section class="card narrow" id="loginView" hidden>
+      <h1>Giriş yap</h1>
+      <p class="muted">Duyuru yazmak ve bildirim göndermek için yönetici hesabınızla giriş yapın.</p>
+      <form id="loginForm" class="form">
+        <label>E-posta
+          <input type="email" name="email" autocomplete="username" required>
+        </label>
+        <label>Şifre
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <button class="btn" type="submit">Giriş</button>
+        <p class="msg" role="status"></p>
+      </form>
+    </section>
+
+    <!-- PANEL -->
+    <div id="panelView" hidden>
+
+      <section class="card">
+        <h2>Yeni duyuru</h2>
+        <form id="annForm" class="form">
+          <label>Başlık
+            <input name="title" maxlength="120" required>
+          </label>
+          <label>Metin
+            <textarea name="body" rows="5" maxlength="2000" required></textarea>
+          </label>
+          <label class="check">
+            <input type="checkbox" name="notify" checked>
+            <span>Bildirim olarak da gönder <span class="muted" id="subCount"></span></span>
+          </label>
+          <button class="btn" type="submit">Yayınla</button>
+          <p class="msg" role="status"></p>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Sadece bildirim gönder</h2>
+        <p class="muted">Duyurular listesine eklenmez, yalnızca bildirimi açık olanların telefonuna gider.</p>
+        <form id="notifyForm" class="form">
+          <label>Başlık
+            <input name="title" maxlength="120" required>
+          </label>
+          <label>Metin
+            <textarea name="body" rows="3" maxlength="300" required></textarea>
+          </label>
+          <button class="btn" type="submit">Gönder</button>
+          <p class="msg" role="status"></p>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Yayındaki duyurular</h2>
+        <ul class="list" id="annList"></ul>
+      </section>
+
+      <section class="card" id="adminsCard" hidden>
+        <h2>Yöneticiler</h2>
+        <ul class="list" id="adminList"></ul>
+        <h3>Yönetici ekle</h3>
+        <form id="adminForm" class="form">
+          <label>Ad Soyad
+            <input name="name" maxlength="80" required>
+          </label>
+          <label>E-posta
+            <input type="email" name="email" required>
+          </label>
+          <label>Geçici şifre <span class="muted">(en az 10 karakter, kişiye iletin)</span>
+            <input name="password" minlength="10" autocomplete="new-password" required>
+          </label>
+          <label>Yetki
+            <select name="role">
+              <option value="admin">Yönetici — duyuru ve bildirim</option>
+              <option value="super">Süper yönetici — ayrıca yönetici ekler/siler</option>
+            </select>
+          </label>
+          <button class="btn" type="submit">Ekle</button>
+          <p class="msg" role="status"></p>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Şifremi değiştir</h2>
+        <form id="passwordForm" class="form">
+          <label>Mevcut şifre
+            <input type="password" name="current" autocomplete="current-password" required>
+          </label>
+          <label>Yeni şifre <span class="muted">(en az 10 karakter)</span>
+            <input type="password" name="password" minlength="10" autocomplete="new-password" required>
+          </label>
+          <button class="btn" type="submit">Değiştir</button>
+          <p class="msg" role="status"></p>
+        </form>
+      </section>
+
+    </div>
+  </main>
+
+  <script src="admin.js"></script>
+</body>
+</html>
