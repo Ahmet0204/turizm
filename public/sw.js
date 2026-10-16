@@ -1,6 +1,6 @@
 /* ADYÜ Mobil PWA — Service Worker */
 
-const CACHE_NAME = 'adyu-mobil-v4';
+const CACHE_NAME = 'adyu-mobil-v5';
 const ASSETS = [
   '/',
   '/index.html',
@@ -64,7 +64,7 @@ self.addEventListener('fetch', event => {
 // Push Bildirimleri — yönetici panelinden gönderilir
 self.addEventListener('push', event => {
   const data = event.data?.json() ?? {};
-  const title = data.title || 'ADYÜ Mobil';
+  const title = data.title || 'Turizm Fakültesi';
   const options = {
     body: data.body || '',
     icon: '/icons/icon-192.png',

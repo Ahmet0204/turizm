@@ -67,7 +67,7 @@ function showLogin() {
   $('#panelView').hidden = true;
   $('#logoutBtn').hidden = true;
   $('#loginView').hidden = false;
-  $('#whoami').textContent = 'ADYÜ Mobil';
+  $('#whoami').textContent = 'Turizm Fakültesi';
 }
 
 async function showPanel(admin) {
