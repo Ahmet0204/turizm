@@ -1,6 +1,6 @@
 /* ADYÜ Mobil PWA — Service Worker */
 
-const CACHE_NAME = 'adyu-mobil-v3';
+const CACHE_NAME = 'adyu-mobil-v4';
 const ASSETS = [
   '/',
   '/index.html',
@@ -8,7 +8,8 @@ const ASSETS = [
   '/js/app.js',
   '/manifest.json',
   '/icons/icon-192.png',
-  '/icons/icon-512.png'
+  '/icons/icon-512.png',
+  '/img/logo.png'
 ];
 
 // Kurulum — statik dosyaları önbelleğe al

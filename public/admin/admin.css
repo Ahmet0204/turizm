@@ -81,9 +81,8 @@ body {
 .logo {
   width: 36px; height: 36px;
   border-radius: 50%;
-  background: rgba(255,255,255,0.25);
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 700;
+  background: #fff;
+  object-fit: contain;
   flex-shrink: 0;
 }
 
