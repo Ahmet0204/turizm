@@ -162,7 +162,8 @@ function renderNews() {
     const body = el('div', 'news-body');
     body.append(el('div', 'news-title', n.title));
     if (n.summary) body.append(el('div', 'news-summary', n.summary));
-    const by = n.source === 'site' ? 'Turizm Fakültesi' : n.author || 'Turizm Fakültesi';
+    const by = n.source !== 'site' ? n.author || 'Turizm Fakültesi'
+      : n.feed === 'uni' ? 'Adıyaman Üniversitesi' : 'Turizm Fakültesi';
     body.append(el('div', 'news-meta', `${by} · ${formatDate(n.published_at)}`));
     card.append(body);
     return card;
@@ -486,6 +487,15 @@ async function togglePush() {
 
 // ── PWA Yükleme ───────────────────────────────
 if ('serviceWorker' in navigator) {
+  // Yeni sürüm devreye girince sayfayı bir kez yenile (ilk kurulumda değil)
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloaded) return;
+    reloaded = true;
+    location.reload();
+  });
+
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {
       // SW yoksa sessizce devam et

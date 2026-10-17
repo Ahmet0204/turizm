@@ -1,6 +1,6 @@
 /* ADYÜ Mobil PWA — Service Worker */
 
-const CACHE_NAME = 'adyu-mobil-v10';
+const CACHE_NAME = 'adyu-mobil-v11';
 const ASSETS = [
   '/',
   '/index.html',
@@ -16,7 +16,7 @@ const ASSETS = [
 // Kurulum — statik dosyaları önbelleğe al
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' }))))
   );
   self.skipWaiting();
 });
@@ -33,31 +33,27 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// Fetch — önce önbellek, yoksa ağdan al
+// Fetch — önce ağ (her zaman güncel sürüm), bağlantı yoksa önbellek
 self.addEventListener('fetch', event => {
-  // Sadece GET isteklerini önbelleğe al
   if (event.request.method !== 'GET') return;
 
   // API ve yönetici paneli her zaman ağdan gelsin
-  const { pathname } = new URL(event.request.url);
-  if (pathname.startsWith('/api/') || pathname.startsWith('/admin')) return;
+  const url = new URL(event.request.url);
+  if (url.origin !== location.origin || url.pathname.startsWith('/api/') || url.pathname.startsWith('/admin')) return;
 
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached;
-      return fetch(event.request).then(response => {
-        // Geçerli yanıtları önbelleğe al
-        if (response && response.status === 200 && response.type === 'basic') {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-        }
-        return response;
-      });
-    }).catch(() => {
-      // Offline durumda ana sayfayı göster
-      if (event.request.destination === 'document') {
-        return caches.match('/index.html');
+    fetch(event.request, { cache: 'no-cache' }).then(response => {
+      if (response && response.status === 200 && response.type === 'basic') {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
       }
+      return response;
+    }).catch(async () => {
+      const cached = await caches.match(event.request);
+      if (cached) return cached;
+      // Çevrimdışı: ana sayfayı göster
+      if (event.request.mode === 'navigate') return caches.match('/index.html');
+      return Response.error();
     })
   );
 });

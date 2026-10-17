@@ -3,7 +3,7 @@
 
 import { hashPassword, verifyPassword, createSession, readSession, SESSION_SECONDS } from './auth.js';
 import { broadcast, isPushEndpoint } from './push.js';
-import { syncNews, SYNC_EVERY, FEED_SQL } from './news.js';
+import { syncNews, SYNC_EVERY, FEED_SQL, FEEDS_SIGNATURE } from './news.js';
 
 const COOKIE = 'turizm_sid';
 const MAX_LOGIN_FAILS = 5;
@@ -95,6 +95,16 @@ const POSTS = {
   messages:      { table: 'messages',      label: 'Mesaj',  url: '/#mesajlar',  pushTitle: (a, t) => `${a}: ${t}` }
 };
 
+// Veritabanı güncellemesi henüz uygulanmamışsa (ör. messages tablosu yok) liste boş dönsün
+function missingTable(err) {
+  if (String(err).includes('no such table')) return { results: [] };
+  throw err;
+}
+
+async function hasTable(env, name) {
+  return !!await env.DB.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").bind(name).first();
+}
+
 // Uygulamada görünecek gönderen adı; boşsa yöneticinin kendi adı
 function senderName(value, admin) {
   return optionalText(value, 80, 'Gönderen adı') || admin.name;
@@ -127,14 +137,19 @@ async function route(request, env, url, ctx) {
   if (publicPosts && method === 'GET') {
     const { results } = await env.DB.prepare(
       `SELECT id, title, body, author, created_at FROM ${POSTS[publicPosts[1]].table} ORDER BY id DESC LIMIT 50`
-    ).all();
+    ).all().catch(missingTable);
     return json(results);
   }
 
   if (path === '/api/news' && method === 'GET') {
     // Zamanlayıcı aksarsa yedek: son senkron eskiyse arka planda yenile
-    const last = await env.DB.prepare("SELECT value FROM meta WHERE key = 'news_synced_at'").first();
-    if (!last || Date.now() / 1000 - Number(last.value) > SYNC_EVERY) {
+    // Kaynak listesi değiştiyse (yeni sürüm) de beklemeden yenile
+    const { results: meta } = await env.DB.prepare(
+      "SELECT key, value FROM meta WHERE key IN ('news_synced_at', 'news_feeds')"
+    ).all();
+    const last = meta.find(m => m.key === 'news_synced_at');
+    const feeds = meta.find(m => m.key === 'news_feeds');
+    if (!last || Date.now() / 1000 - Number(last.value) > SYNC_EVERY || feeds?.value !== FEEDS_SIGNATURE) {
       ctx.waitUntil(syncNews(env).catch(err => console.error('Haber senkronu', err)));
     }
     // Her sekme için en yeni 30 öğe
@@ -195,7 +210,7 @@ async function route(request, env, url, ctx) {
     const { results } = await env.DB.prepare(
       `SELECT author FROM (
          SELECT author, created_at FROM announcements UNION ALL
-         SELECT author, created_at FROM messages UNION ALL
+         SELECT author, created_at FROM ${await hasTable(env, 'messages') ? 'messages' : 'announcements WHERE 0'} UNION ALL
          SELECT author, created_at FROM news WHERE source = 'manual' AND author IS NOT NULL
        ) GROUP BY author ORDER BY MAX(created_at) DESC LIMIT 30`
     ).all();
@@ -207,6 +222,9 @@ async function route(request, env, url, ctx) {
   if (postMatch) {
     const kind = POSTS[postMatch[1]];
     const id = postMatch[2] ? Number(postMatch[2]) : null;
+    if (!await hasTable(env, kind.table)) {
+      throw new HttpError(503, 'Mesajlar henüz etkin değil: veritabanı güncellemesi (0003_messages) uygulanmalı');
+    }
 
     if (!id && method === 'POST') {
       const data = await readJson(request);

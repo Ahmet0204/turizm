@@ -8,6 +8,8 @@ export const FEEDS = {
   uni:     { list: 'https://adiyaman.edu.tr/tr/duyurular', accept: u => u.hostname.endsWith('adiyaman.edu.tr') },
   fakulte: { list: FACULTY_ORIGIN + '/tr/duyurular',      accept: u => u.origin === FACULTY_ORIGIN }
 };
+// Kaynak listesi değişince bir sonraki istekte hemen senkron yapılır
+export const FEEDS_SIGNATURE = Object.values(FEEDS).map(f => f.list).join(' ');
 const LIST_PAGES = 2;               // her senkronda akış başına ilk 2 sayfa (~24 öğe)
 export const SYNC_EVERY = 3 * 3600; // istek anında yedek senkron aralığı (saniye)
 
@@ -112,9 +114,11 @@ export async function syncNews(env) {
   ]);
   const added = results.slice(1).reduce((sum, r) => sum + (r.meta?.changes || 0), 0);
 
-  await env.DB.prepare(
-    `INSERT INTO meta (key, value) VALUES ('news_synced_at', ?1) ON CONFLICT(key) DO UPDATE SET value = ?1`
-  ).bind(String(Math.floor(Date.now() / 1000))).run();
+  const upsert = env.DB.prepare(`INSERT INTO meta (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = ?2`);
+  await env.DB.batch([
+    upsert.bind('news_synced_at', String(Math.floor(Date.now() / 1000))),
+    upsert.bind('news_feeds', FEEDS_SIGNATURE)
+  ]);
 
   return { found: found.length, added, errors };
 }
