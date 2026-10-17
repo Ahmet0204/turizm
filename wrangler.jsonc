@@ -3,6 +3,8 @@
   "name": "turizm",
   "main": "src/worker.js",
   "compatibility_date": "2026-10-06",
+  // Sürüm deneme adresleri (<sürüm>-turizm.tokmak.workers.dev) kapalı
+  "preview_urls": false,
   "observability": {
     "enabled": true
   },
