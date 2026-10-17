@@ -92,8 +92,15 @@ document.getElementById('notifBtn')?.addEventListener('click', () => {
   switchTab('announcements');
 });
 
-// ── Haberler ──────────────────────────────────
+// ── Haberler: Üniversiteden / Fakülteden sekmeleri ──
 const NEWS_LIMIT = 6;
+const FEED_KEY = 'turizm:duyuruSekmesi';
+const FEED_LINKS = {
+  uni:     'https://turizm.adiyaman.edu.tr/tr/haberler',
+  fakulte: 'https://turizm.adiyaman.edu.tr/tr/duyurular'
+};
+let newsItems = null;
+let currentFeed = storageGet(FEED_KEY) === 'uni' ? 'uni' : 'fakulte';
 
 async function loadNews() {
   const list = document.getElementById('newsList');
@@ -101,17 +108,34 @@ async function loadNews() {
   try {
     const res = await fetch('/api/news');
     if (!res.ok) throw new Error(res.status);
-    renderNews(await res.json());
+    newsItems = await res.json();
+    renderNews();
   } catch {
-    list.replaceChildren(el('div', 'ann-empty', 'Haberler yüklenemedi. Bağlantınızı kontrol edin.'));
+    if (!newsItems) list.replaceChildren(el('div', 'ann-empty', 'Duyurular yüklenemedi. Bağlantınızı kontrol edin.'));
   }
 }
 
-function renderNews(items) {
+function selectFeed(feed) {
+  currentFeed = feed;
+  storageSet(FEED_KEY, feed);
+  renderNews();
+}
+
+function renderNews() {
   const list = document.getElementById('newsList');
-  document.getElementById('newsMore').hidden = !items.length;
+  document.querySelectorAll('.seg-btn').forEach(btn => {
+    const active = btn.dataset.feed === currentFeed;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-selected', String(active));
+  });
+  const more = document.getElementById('newsMore');
+  more.href = FEED_LINKS[currentFeed];
+  if (!newsItems) return;
+
+  const items = newsItems.filter(n => (n.feed || 'fakulte') === currentFeed);
+  more.hidden = !items.length;
   if (!items.length) {
-    list.replaceChildren(el('div', 'ann-empty', 'Henüz haber yok.'));
+    list.replaceChildren(el('div', 'ann-empty', 'Henüz duyuru yok.'));
     return;
   }
   list.replaceChildren(...items.slice(0, NEWS_LIMIT).map(n => {
@@ -130,13 +154,19 @@ function renderNews(items) {
       card.append(img);
     }
     const body = el('div', 'news-body');
-    body.append(el('div', 'news-tag', n.source === 'site' ? 'Fakülte' : 'Duyuru'), el('div', 'news-title', n.title));
+    body.append(el('div', 'news-title', n.title));
     if (n.summary) body.append(el('div', 'news-summary', n.summary));
-    body.append(el('div', 'news-meta', `${n.source === 'site' ? 'Turizm Fakültesi' : n.author || 'Turizm Fakültesi'} · ${formatDate(n.published_at)}`));
+    const by = n.source === 'site' ? 'Turizm Fakültesi' : n.author || 'Turizm Fakültesi';
+    body.append(el('div', 'news-meta', `${by} · ${formatDate(n.published_at)}`));
     card.append(body);
     return card;
   }));
 }
+
+document.querySelectorAll('.seg-btn').forEach(btn => {
+  btn.addEventListener('click', () => selectFeed(btn.dataset.feed));
+});
+renderNews();
 
 // ── Duyurular ─────────────────────────────────
 const LAST_SEEN_KEY = 'turizm:sonGorulenDuyuru';

@@ -97,10 +97,14 @@
           </button>
         </div>
 
-        <!-- Fakülte sitesindeki duyurular -->
-        <div class="section-label">Fakülteden Haberler</div>
-        <div class="news-list" id="newsList">
-          <div class="ann-empty">Haberler yükleniyor…</div>
+        <!-- Fakülte sitesinden: haberler (üniversite) ve duyurular (fakülte) -->
+        <div class="section-label">Duyurular</div>
+        <div class="seg" role="tablist" aria-label="Duyuru kaynağı">
+          <button class="seg-btn" type="button" role="tab" id="feedTab-uni" data-feed="uni" aria-selected="false" aria-controls="newsList">Üniversiteden</button>
+          <button class="seg-btn" type="button" role="tab" id="feedTab-fakulte" data-feed="fakulte" aria-selected="true" aria-controls="newsList">Fakülteden</button>
+        </div>
+        <div class="news-list" id="newsList" role="tabpanel">
+          <div class="ann-empty">Duyurular yükleniyor…</div>
         </div>
         <a class="news-more" id="newsMore" href="https://turizm.adiyaman.edu.tr/tr/duyurular" target="_blank" rel="noopener" hidden>Tüm duyurular →</a>
 

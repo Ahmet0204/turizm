@@ -198,7 +198,7 @@ async function loadNews() {
     const li = el('li', n.hidden ? 'is-hidden' : '');
     const main = el('div', 'item-main');
     const title = el('div', 'item-title', n.title);
-    title.append(el('span', 'role', n.source === 'site' ? 'Site' : 'Panel'));
+    title.append(el('span', 'role', n.source === 'site' ? (n.feed === 'uni' ? 'Üniversite' : 'Fakülte') : 'Panel'));
     if (n.hidden) title.append(el('span', 'role muted-role', 'Gizli'));
     main.append(title, el('div', 'item-meta', `${n.source === 'site' ? 'Fakülte sitesi' : n.author} · ${formatDate(n.published_at)}`));
 

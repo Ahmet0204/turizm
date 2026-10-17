@@ -3,7 +3,7 @@
 
 import { hashPassword, verifyPassword, createSession, readSession, SESSION_SECONDS } from './auth.js';
 import { broadcast, isPushEndpoint } from './push.js';
-import { syncNews, SYNC_EVERY } from './news.js';
+import { syncNews, SYNC_EVERY, FEED_SQL } from './news.js';
 
 const COOKIE = 'turizm_sid';
 const MAX_LOGIN_FAILS = 5;
@@ -125,9 +125,13 @@ async function route(request, env, url, ctx) {
     if (!last || Date.now() / 1000 - Number(last.value) > SYNC_EVERY) {
       ctx.waitUntil(syncNews(env).catch(err => console.error('Haber senkronu', err)));
     }
+    // Her sekme için en yeni 30 öğe
     const { results } = await env.DB.prepare(
-      `SELECT id, source, url, title, summary, image, author, published_at FROM news
-       WHERE hidden = 0 ORDER BY published_at DESC, id ASC LIMIT 30`
+      `SELECT id, source, feed, url, title, summary, image, author, published_at FROM (
+         SELECT *, ${FEED_SQL} AS feed,
+                ROW_NUMBER() OVER (PARTITION BY ${FEED_SQL} ORDER BY published_at DESC, id ASC) AS n
+         FROM news WHERE hidden = 0
+       ) WHERE n <= 30 ORDER BY published_at DESC, id ASC`
     ).all();
     return json(results);
   }
@@ -204,8 +208,8 @@ async function route(request, env, url, ctx) {
   // Haberler: panelden ekleme, düzenleme, gizleme; siteden elle senkron
   if (path === '/api/admin/news' && method === 'GET') {
     const { results } = await env.DB.prepare(
-      `SELECT id, source, url, title, summary, image, author, published_at, hidden FROM news
-       ORDER BY published_at DESC, id ASC LIMIT 100`
+      `SELECT id, source, ${FEED_SQL} AS feed, url, title, summary, image, author, published_at, hidden FROM news
+       ORDER BY published_at DESC, id ASC LIMIT 150`
     ).all();
     const last = await env.DB.prepare("SELECT value FROM meta WHERE key = 'news_synced_at'").first();
     return json({ items: results, synced_at: last ? Number(last.value) : null });
