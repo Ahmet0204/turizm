@@ -89,6 +89,17 @@ function newPassword(value) {
 const sessionCookie = (value, maxAge) =>
   `${COOKIE}=${value}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${maxAge}`;
 
+// Duyuru ve mesaj türleri (tablo adları sabit; kullanıcıdan gelmez)
+const POSTS = {
+  announcements: { table: 'announcements', label: 'Duyuru', url: '/#duyurular', pushTitle: (a, t) => t },
+  messages:      { table: 'messages',      label: 'Mesaj',  url: '/#mesajlar',  pushTitle: (a, t) => `${a}: ${t}` }
+};
+
+// Uygulamada görünecek gönderen adı; boşsa yöneticinin kendi adı
+function senderName(value, admin) {
+  return optionalText(value, 80, 'Gönderen adı') || admin.name;
+}
+
 const publicAdmin = a => ({ id: a.id, email: a.email, name: a.name, role: a.role });
 
 async function currentAdmin(request, env) {
@@ -112,9 +123,10 @@ async function route(request, env, url, ctx) {
   if (method !== 'GET' && origin && origin !== url.origin) throw new HttpError(403, 'İzin verilmeyen kaynak');
 
   // Herkese açık
-  if (path === '/api/announcements' && method === 'GET') {
+  const publicPosts = path.match(/^\/api\/(announcements|messages)$/);
+  if (publicPosts && method === 'GET') {
     const { results } = await env.DB.prepare(
-      'SELECT id, title, body, author, created_at FROM announcements ORDER BY id DESC LIMIT 50'
+      `SELECT id, title, body, author, created_at FROM ${POSTS[publicPosts[1]].table} ORDER BY id DESC LIMIT 50`
     ).all();
     return json(results);
   }
@@ -178,31 +190,51 @@ async function route(request, env, url, ctx) {
     return json({ ...publicAdmin(admin), subscribers: n });
   }
 
-  if (path === '/api/admin/announcements' && method === 'POST') {
-    const data = await readJson(request);
-    const title = text(data.title, 120, 'Başlık');
-    const body = text(data.body, 2000, 'Metin');
-    const row = await env.DB.prepare(
-      'INSERT INTO announcements (title, body, author) VALUES (?, ?, ?) RETURNING id'
-    ).bind(title, body, admin.name).first();
-    const push = data.notify ? await broadcast(env, { title, body: body.slice(0, 180), url: '/#duyurular' }) : null;
-    return json({ id: row.id, push }, 201);
+  // Duyurular ve mesajlar: aynı yapı, farklı tablo. Gönderen adını yönetici seçer.
+  if (path === '/api/admin/senders' && method === 'GET') {
+    const { results } = await env.DB.prepare(
+      `SELECT author FROM (
+         SELECT author, created_at FROM announcements UNION ALL
+         SELECT author, created_at FROM messages UNION ALL
+         SELECT author, created_at FROM news WHERE source = 'manual' AND author IS NOT NULL
+       ) GROUP BY author ORDER BY MAX(created_at) DESC LIMIT 30`
+    ).all();
+    const names = [admin.name, ...results.map(r => r.author)];
+    return json([...new Set(names)]);
   }
 
-  const annMatch = path.match(/^\/api\/admin\/announcements\/(\d+)$/);
-  if (annMatch && method === 'DELETE') {
-    await env.DB.prepare('DELETE FROM announcements WHERE id = ?').bind(Number(annMatch[1])).run();
-    return json({ ok: true });
-  }
+  const postMatch = path.match(/^\/api\/admin\/(announcements|messages)(?:\/(\d+))?$/);
+  if (postMatch) {
+    const kind = POSTS[postMatch[1]];
+    const id = postMatch[2] ? Number(postMatch[2]) : null;
 
-  if (annMatch && method === 'PUT') {
-    const data = await readJson(request);
-    const title = text(data.title, 120, 'Başlık');
-    const body = text(data.body, 2000, 'Metin');
-    const row = await env.DB.prepare('UPDATE announcements SET title = ?, body = ? WHERE id = ? RETURNING id')
-      .bind(title, body, Number(annMatch[1])).first();
-    if (!row) throw new HttpError(404, 'Duyuru bulunamadı');
-    return json({ ok: true });
+    if (!id && method === 'POST') {
+      const data = await readJson(request);
+      const title = text(data.title, 120, 'Başlık');
+      const body = text(data.body, 2000, 'Metin');
+      const author = senderName(data.sender, admin);
+      const row = await env.DB.prepare(
+        `INSERT INTO ${kind.table} (title, body, author) VALUES (?, ?, ?) RETURNING id`
+      ).bind(title, body, author).first();
+      const push = data.notify
+        ? await broadcast(env, { title: kind.pushTitle(author, title), body: body.slice(0, 180), url: kind.url })
+        : null;
+      return json({ id: row.id, push }, 201);
+    }
+
+    if (id && method === 'PUT') {
+      const data = await readJson(request);
+      const row = await env.DB.prepare(
+        `UPDATE ${kind.table} SET title = ?, body = ?, author = ? WHERE id = ? RETURNING id`
+      ).bind(text(data.title, 120, 'Başlık'), text(data.body, 2000, 'Metin'), senderName(data.sender, admin), id).first();
+      if (!row) throw new HttpError(404, `${kind.label} bulunamadı`);
+      return json({ ok: true });
+    }
+
+    if (id && method === 'DELETE') {
+      await env.DB.prepare(`DELETE FROM ${kind.table} WHERE id = ?`).bind(id).run();
+      return json({ ok: true });
+    }
   }
 
   // Haberler: panelden ekleme, düzenleme, gizleme; siteden elle senkron
@@ -222,7 +254,7 @@ async function route(request, env, url, ctx) {
        VALUES ('manual', ?, ?, ?, ?, ?, unixepoch()) RETURNING id`
     ).bind(
       optionalUrl(data.url, 'Bağlantı'), text(data.title, 200, 'Başlık'),
-      optionalText(data.summary, 600, 'Özet'), optionalUrl(data.image, 'Görsel'), admin.name
+      optionalText(data.summary, 600, 'Özet'), optionalUrl(data.image, 'Görsel'), senderName(data.sender, admin)
     ).first().catch(err => {
       if (String(err).includes('UNIQUE')) throw new HttpError(409, 'Bu bağlantıyla bir haber zaten var');
       throw err;
@@ -253,10 +285,13 @@ async function route(request, env, url, ctx) {
       }
       // Siteden gelen haberin bağlantısı sabit kalır; tekrar eklenmeyi önleyen anahtar odur
       await env.DB.prepare(
-        `UPDATE news SET title = ?1, summary = ?2, image = ?3, url = CASE WHEN source = 'site' THEN url ELSE ?4 END WHERE id = ?5`
+        `UPDATE news SET title = ?1, summary = ?2, image = ?3,
+           url = CASE WHEN source = 'site' THEN url ELSE ?4 END,
+           author = CASE WHEN source = 'site' THEN author ELSE ?5 END
+         WHERE id = ?6`
       ).bind(
         text(data.title, 200, 'Başlık'), optionalText(data.summary, 600, 'Özet'), optionalUrl(data.image, 'Görsel'),
-        item.source === 'site' ? null : optionalUrl(data.url, 'Bağlantı'), id
+        item.source === 'site' ? null : optionalUrl(data.url, 'Bağlantı'), senderName(data.sender, admin), id
       ).run().catch(err => {
         if (String(err).includes('UNIQUE')) throw new HttpError(409, 'Bu bağlantıyla bir haber zaten var');
         throw err;

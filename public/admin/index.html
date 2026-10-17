@@ -13,7 +13,7 @@
   <header class="bar">
     <div class="bar-inner">
       <div class="brand">
-        <img class="logo" src="/img/logo-round.png" alt="ADYÜ Turizm Fakültesi logosu" width="36" height="36">
+        <img class="logo" src="/img/logo.png" alt="ADYÜ Turizm Fakültesi logosu" width="36" height="36">
         <div>
           <div class="brand-title">Yönetici Paneli</div>
           <div class="brand-sub" id="whoami">Turizm Fakültesi</div>
@@ -47,20 +47,49 @@
       <section class="card" id="annCard">
         <h2 id="annFormTitle">Yeni duyuru</h2>
         <form id="annForm" class="form">
+          <label>Gönderen adı <span class="muted">(uygulamada görünür; ör. Bölüm Başkanı, Prof. Dr. Ahmet Yılmaz)</span>
+            <input name="sender" maxlength="80" list="senderList" autocomplete="off" placeholder="Boş bırakılırsa kendi adınız">
+          </label>
           <label>Başlık
             <input name="title" maxlength="120" required>
           </label>
           <label>Metin
             <textarea name="body" rows="5" maxlength="2000" required></textarea>
           </label>
-          <label class="check" id="notifyRow">
+          <label class="check" id="annNotifyRow">
             <input type="checkbox" name="notify" checked>
-            <span>Bildirim olarak da gönder <span class="muted" id="subCount"></span></span>
+            <span>Bildirim olarak da gönder <span class="muted sub-count"></span></span>
           </label>
           <button class="btn" type="submit" id="annSubmit">Yayınla</button>
           <button class="edit-btn" type="button" id="annCancel" hidden>Vazgeç</button>
           <p class="msg" role="status"></p>
         </form>
+        <h3>Yayındaki duyurular</h3>
+        <ul class="list" id="annList"></ul>
+      </section>
+
+      <section class="card" id="msgsCard">
+        <h2 id="msgsFormTitle">Yeni mesaj</h2>
+        <form id="msgsForm" class="form">
+          <label>Gönderen adı <span class="muted">(uygulamada görünür; ör. Bölüm Başkanı, Prof. Dr. Ahmet Yılmaz)</span>
+            <input name="sender" maxlength="80" list="senderList" autocomplete="off" placeholder="Boş bırakılırsa kendi adınız">
+          </label>
+          <label>Başlık
+            <input name="title" maxlength="120" required>
+          </label>
+          <label>Metin
+            <textarea name="body" rows="6" maxlength="2000" required></textarea>
+          </label>
+          <label class="check" id="msgsNotifyRow">
+            <input type="checkbox" name="notify" checked>
+            <span>Bildirim olarak da gönder <span class="muted sub-count"></span></span>
+          </label>
+          <button class="btn" type="submit" id="msgsSubmit">Gönder</button>
+          <button class="edit-btn" type="button" id="msgsCancel" hidden>Vazgeç</button>
+          <p class="msg" role="status"></p>
+        </form>
+        <h3>Gönderilen mesajlar</h3>
+        <ul class="list" id="msgsList"></ul>
       </section>
 
       <section class="card">
@@ -78,15 +107,13 @@
         </form>
       </section>
 
-      <section class="card">
-        <h2>Yayındaki duyurular</h2>
-        <ul class="list" id="annList"></ul>
-      </section>
-
       <section class="card" id="newsCard">
         <h2 id="newsFormTitle">Haber ekle</h2>
-        <p class="muted">Ana sayfadaki iki sekme saatte bir fakülte sitesinden otomatik dolar: <b>Üniversiteden</b> (sitenin Haberler sayfası) ve <b>Fakülteden</b> (sitenin Duyurular sayfası). Buradan eklediğiniz haberler Fakülteden sekmesinde görünür.</p>
+        <p class="muted">Ana sayfadaki iki sekme saatte bir fakülte sitesinden otomatik dolar: <b>Üniversiteden</b> (adiyaman.edu.tr duyuruları) ve <b>Fakülteden</b> (turizm.adiyaman.edu.tr duyuruları). Buradan eklediğiniz haberler Fakülteden sekmesinde görünür.</p>
         <form id="newsForm" class="form">
+          <label>Gönderen adı <span class="muted">(uygulamada görünür; ör. Bölüm Başkanı, Prof. Dr. Ahmet Yılmaz)</span>
+            <input name="sender" maxlength="80" list="senderList" autocomplete="off" placeholder="Boş bırakılırsa kendi adınız">
+          </label>
           <label>Başlık
             <input name="title" maxlength="200" required>
           </label>
@@ -151,6 +178,9 @@
           <p class="msg" role="status"></p>
         </form>
       </section>
+
+      <!-- Gönderen adı önerileri: daha önce kullanılan adlar -->
+      <datalist id="senderList"></datalist>
 
     </div>
   </main>

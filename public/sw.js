@@ -1,6 +1,6 @@
 /* ADYÜ Mobil PWA — Service Worker */
 
-const CACHE_NAME = 'adyu-mobil-v9';
+const CACHE_NAME = 'adyu-mobil-v10';
 const ASSETS = [
   '/',
   '/index.html',
@@ -9,7 +9,7 @@ const ASSETS = [
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
-  '/img/logo-round.png',
+  '/img/logo.png',
   '/icons/icon-maskable-192.png'
 ];
 

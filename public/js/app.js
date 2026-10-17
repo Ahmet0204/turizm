@@ -24,17 +24,18 @@ function switchTab(tabId) {
   updateHeader(tabId);
 
   if (tabId === 'announcements') markAnnouncementsSeen();
+  if (tabId === 'messages') markMessagesSeen();
 }
 
 function updateHeader(tabId) {
   const titles = {
-    home:          'ADYÜ',
+    home:          'Turizm Fakültesi',
     obs:           'OBS',
     announcements: 'Duyurular',
     messages:      'Mesajlar'
   };
   const subtitles = {
-    home:          'Turizm Fakültesi',
+    home:          homeSubtitle(),
     obs:           'Öğrenci Bilgi Sistemi',
     announcements: 'Fakülte Duyuruları',
     messages:      'Gelen Kutusu'
@@ -43,8 +44,8 @@ function updateHeader(tabId) {
   const titleEl = document.querySelector('.header-title');
   const subtitleEl = document.querySelector('.header-subtitle');
 
-  if (titleEl) titleEl.textContent = titles[tabId] || 'ADYÜ';
-  if (subtitleEl) subtitleEl.textContent = subtitles[tabId] || 'Turizm Fakültesi';
+  if (titleEl) titleEl.textContent = titles[tabId] || 'Turizm Fakültesi';
+  if (subtitleEl) subtitleEl.textContent = subtitles[tabId] || homeSubtitle();
 }
 
 // ── Tarih ─────────────────────────────────────
@@ -52,11 +53,14 @@ const DAYS = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 
 const MONTHS = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran',
                 'Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
 
-function updateDate() {
-  const el = document.getElementById('welcomeDate');
-  if (!el) return;
+// Ana sayfa başlığının alt satırı: "Öğrenci Portalı · 17 Ekim Cumartesi"
+function homeSubtitle() {
   const now = new Date();
-  el.innerHTML = `${DAYS[now.getDay()]}<br>${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
+  return `Öğrenci Portalı · ${now.getDate()} ${MONTHS[now.getMonth()]} ${DAYS[now.getDay()]}`;
+}
+
+function updateDate() {
+  if (document.getElementById('tab-home')?.classList.contains('active')) updateHeader('home');
 }
 
 function formatDate(unixSeconds) {
@@ -88,15 +92,17 @@ function openTourismDept() {
 }
 
 // ── Bildirim Butonu ───────────────────────────
+// Zil: bildirimler kapalıysa açmayı önerir, açıksa duyurulara gider
 document.getElementById('notifBtn')?.addEventListener('click', () => {
-  switchTab('announcements');
+  if (pushState === 'off' || pushState === 'error') showPushPrompt();
+  else switchTab('announcements');
 });
 
 // ── Haberler: Üniversiteden / Fakülteden sekmeleri ──
 const NEWS_LIMIT = 6;
 const FEED_KEY = 'turizm:duyuruSekmesi';
 const FEED_LINKS = {
-  uni:     'https://turizm.adiyaman.edu.tr/tr/haberler',
+  uni:     'https://adiyaman.edu.tr/tr/duyurular',
   fakulte: 'https://turizm.adiyaman.edu.tr/tr/duyurular'
 };
 let newsItems = null;
@@ -242,6 +248,114 @@ function updateUnreadBadges(count) {
   }
 }
 
+// ── Mesajlar ──────────────────────────────────
+const MSG_SEEN_KEY = 'turizm:okunanMesajlar';
+const AVATAR_COLORS = ['#00407A', '#005F96', '#0870B4', '#2E7D32', '#6A1B9A', '#AD5A00', '#00796B'];
+let messages = [];
+
+function readMessageIds() {
+  try { return new Set(JSON.parse(storageGet(MSG_SEEN_KEY) || '[]')); } catch { return new Set(); }
+}
+
+function avatarFor(name, node) {
+  // Unvanları atla: "Prof. Dr. Ahmet" → "A"
+  const initials = name.replace(/^(?:(?:Prof|Doç|Dr|Öğr|Üyesi|Gör|Arş)\.?\s+)+/i, '').trim();
+  node.textContent = (initials[0] || name[0] || '?').toLocaleUpperCase('tr');
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+  node.style.background = AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
+function formatMessageTime(unixSeconds) {
+  const d = new Date(unixSeconds * 1000);
+  const now = new Date();
+  const time = d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+  const days = Math.round((new Date(now.toDateString()) - new Date(d.toDateString())) / 86400000);
+  if (days === 0) return `Bugün ${time}`;
+  if (days === 1) return `Dün ${time}`;
+  return `${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}`;
+}
+
+async function loadMessages() {
+  const list = document.getElementById('msgList');
+  if (!list) return;
+  try {
+    const res = await fetch('/api/messages');
+    if (!res.ok) throw new Error(res.status);
+    messages = await res.json();
+    renderMessages();
+  } catch {
+    if (!messages.length) list.replaceChildren(el('div', 'ann-empty', 'Mesajlar yüklenemedi. Bağlantınızı kontrol edin.'));
+  }
+}
+
+function renderMessages() {
+  const list = document.getElementById('msgList');
+  const read = readMessageIds();
+  updateMessageBadge(messages.filter(m => !read.has(m.id)).length);
+  if (!messages.length) {
+    list.replaceChildren(el('div', 'ann-empty', 'Henüz mesaj yok.'));
+    return;
+  }
+  list.replaceChildren(...messages.map(m => {
+    const unread = !read.has(m.id);
+    const item = el('button', 'msg-item' + (unread ? ' unread' : ''));
+    item.type = 'button';
+    const avatar = el('div', 'msg-avatar');
+    avatarFor(m.author, avatar);
+    const content = el('div', 'msg-content');
+    const header = el('div', 'msg-header');
+    header.append(el('span', 'msg-sender', m.author), el('span', 'msg-time', formatMessageTime(m.created_at)));
+    content.append(header, el('div', 'msg-subject', m.title), el('div', 'msg-preview', m.body.replace(/\s+/g, ' ')));
+    item.append(avatar, content);
+    if (unread) item.append(el('div', 'msg-unread-dot'));
+    item.addEventListener('click', () => openMessage(m));
+    return item;
+  }));
+}
+
+function updateMessageBadge(count) {
+  const badge = document.getElementById('msgBadge');
+  if (!badge) return;
+  badge.textContent = count > 9 ? '9+' : String(count);
+  badge.hidden = count === 0;
+}
+
+function openMessage(m) {
+  const read = readMessageIds();
+  read.add(m.id);
+  // Yalnızca hâlâ listede olan mesajların kaydını tut
+  storageSet(MSG_SEEN_KEY, JSON.stringify([...read].filter(id => messages.some(x => x.id === id))));
+  renderMessages();
+
+  avatarFor(m.author, document.getElementById('msgSheetAvatar'));
+  document.getElementById('msgSheetSender').textContent = m.author;
+  document.getElementById('msgSheetDate').textContent =
+    new Date(m.created_at * 1000).toLocaleString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  document.getElementById('msgSheetTitle').textContent = m.title;
+  document.getElementById('msgSheetText').textContent = m.body;
+  const sheet = document.getElementById('msgSheet');
+  sheet.hidden = false;
+  sheet.querySelector('.msg-sheet-body').scrollTop = 0;
+  // Telefonun geri tuşu mesajı kapatsın
+  if (!history.state?.msg) history.pushState({ msg: m.id }, '');
+  document.getElementById('msgSheetBack').focus();
+}
+
+function closeMessage() {
+  document.getElementById('msgSheet').hidden = true;
+}
+
+function markMessagesSeen() {
+  // Mesaj sekmesine girmek okumak sayılmaz; rozet açılan mesajlarla azalır
+}
+
+document.getElementById('msgSheetBack')?.addEventListener('click', () => {
+  if (history.state?.msg) history.back();
+  else closeMessage();
+});
+window.addEventListener('popstate', closeMessage);
+
 // ── Push Bildirim Aboneliği ───────────────────
 const PUSH_STATES = {
   off:     { desc: 'Yeni duyurular yayınlandığında bildirim alın.', btn: 'Aç' },
@@ -252,7 +366,10 @@ const PUSH_STATES = {
   ios:     { desc: 'iPhone’da bildirim almak için önce Paylaş → Ana Ekrana Ekle ile uygulamayı yükleyin, sonra oradan açın.', btn: null }
 };
 
+let pushState = null;
+
 function setPushState(state) {
+  pushState = state;
   const s = PUSH_STATES[state];
   const desc = document.getElementById('pushDesc');
   const btn = document.getElementById('pushBtn');
@@ -300,7 +417,37 @@ async function initPush() {
   // Sunucu aboneliği silmiş olabilir; her açılışta yeniden bildir
   if (sub) fetch('/api/push/subscribe', postJson(sub.toJSON())).catch(() => {});
   setPushState(Notification.permission === 'denied' ? 'denied' : sub ? 'on' : 'off');
+  maybeAskForPush();
 }
+
+// İlk açılışta (ve "Şimdi değil" denirse bir hafta sonra) bildirimleri açmayı öner
+const PUSH_ASKED_KEY = 'turizm:bildirimSoruldu';
+const PUSH_ASK_AGAIN = 7 * 86400 * 1000;
+
+function maybeAskForPush() {
+  if (pushState !== 'off' || Notification.permission !== 'default') return;
+  const asked = Number(storageGet(PUSH_ASKED_KEY) || 0);
+  if (Date.now() - asked < PUSH_ASK_AGAIN) return;
+  setTimeout(showPushPrompt, 1200);
+}
+
+function showPushPrompt() {
+  const prompt = document.getElementById('pushPrompt');
+  if (!prompt || pushState !== 'off' && pushState !== 'error') return;
+  prompt.hidden = false;
+  document.getElementById('pushPromptYes').focus();
+}
+
+function hidePushPrompt() {
+  document.getElementById('pushPrompt').hidden = true;
+  storageSet(PUSH_ASKED_KEY, String(Date.now()));
+}
+
+document.getElementById('pushPromptYes')?.addEventListener('click', async () => {
+  hidePushPrompt();
+  await togglePush();
+});
+document.getElementById('pushPromptNo')?.addEventListener('click', hidePushPrompt);
 
 async function togglePush() {
   setPushState('busy');
@@ -350,15 +497,18 @@ if ('serviceWorker' in navigator) {
 updateDate();
 loadNews();
 loadAnnouncements();
+loadMessages();
 initPush();
 
 // Bildirime tıklayınca /#duyurular ile açılır
 if (location.hash === '#duyurular') switchTab('announcements');
+if (location.hash === '#mesajlar') switchTab('messages');
 
 // Uygulamaya geri dönülünce duyuruları tazele
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
     loadAnnouncements();
     loadNews();
+    loadMessages();
   }
 });

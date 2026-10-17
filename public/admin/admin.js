@@ -77,19 +77,29 @@ async function showPanel(admin) {
   $('#logoutBtn').hidden = false;
   $('#whoami').textContent = `${admin.name} · ${admin.role === 'super' ? 'Süper yönetici' : 'Yönetici'}`;
   $('#adminsCard').hidden = admin.role !== 'super';
-  await Promise.all([refreshMe(), loadAnnouncements(), loadNews(), admin.role === 'super' ? loadAdmins() : null]);
+  await Promise.all([refreshMe(), loadPosts('announcements'), loadPosts('messages'), loadNews(), loadSenders(),
+    admin.role === 'super' ? loadAdmins() : null]);
 }
 
 async function refreshMe() {
   const data = await api('/api/admin/me');
-  $('#subCount').textContent = `(${data.subscribers} abone)`;
+  document.querySelectorAll('.sub-count').forEach(n => { n.textContent = `(${data.subscribers} abone)`; });
 }
 
-async function loadAnnouncements() {
-  const list = $('#annList');
-  const items = await api('/api/announcements');
+// ── Duyurular ve mesajlar: aynı form/liste yapısı ──
+const POSTS = {
+  announcements: { p: 'ann',  noun: 'duyuru', newTitle: 'Yeni duyuru', editTitle: 'Duyuruyu düzenle', submit: 'Yayınla', done: 'Duyuru yayınlandı.' },
+  messages:      { p: 'msgs', noun: 'mesaj',  newTitle: 'Yeni mesaj',  editTitle: 'Mesajı düzenle',   submit: 'Gönder',  done: 'Mesaj gönderildi.' }
+};
+const editing = { announcements: null, messages: null };
+const postForm = kind => $(`#${POSTS[kind].p}Form`);
+
+async function loadPosts(kind) {
+  const k = POSTS[kind];
+  const list = $(`#${k.p}List`);
+  const items = await api(`/api/${kind}`);
   if (!items.length) {
-    list.replaceChildren(el('li', 'empty', 'Henüz duyuru yok.'));
+    list.replaceChildren(el('li', 'empty', `Henüz ${k.noun} yok.`));
     return;
   }
   list.replaceChildren(...items.map(a => {
@@ -99,16 +109,16 @@ async function loadAnnouncements() {
     main.append(el('div', 'item-body', a.body));
     const edit = el('button', 'edit-btn', 'Düzenle');
     edit.type = 'button';
-    edit.addEventListener('click', () => startEdit(a));
+    edit.addEventListener('click', () => startPostEdit(kind, a));
     const del = el('button', 'del-btn', 'Sil');
     del.type = 'button';
     del.addEventListener('click', async () => {
-      if (!confirm(`"${a.title}" duyurusu silinsin mi?`)) return;
+      if (!confirm(`"${a.title}" ${k.noun} silinsin mi?`)) return;
       del.disabled = true;
       try {
-        await api(`/api/admin/announcements/${a.id}`, { method: 'DELETE' });
-        if (editingId === a.id) stopEdit();
-        await loadAnnouncements();
+        await api(`/api/admin/${kind}/${a.id}`, { method: 'DELETE' });
+        if (editing[kind] === a.id) stopPostEdit(kind);
+        await loadPosts(kind);
       } catch (err) {
         alert(err.message);
         del.disabled = false;
@@ -121,38 +131,65 @@ async function loadAnnouncements() {
   }));
 }
 
-// Duyuru düzenleme: "Yeni duyuru" formunu düzenleme moduna alır
-let editingId = null;
-
-function startEdit(a) {
-  const form = $('#annForm');
-  editingId = a.id;
+// Düzenleme: "Yeni …" formunu düzenleme moduna alır
+function startPostEdit(kind, a) {
+  const k = POSTS[kind];
+  const form = postForm(kind);
+  editing[kind] = a.id;
+  form.sender.value = a.author;
   form.title.value = a.title;
   form.body.value = a.body;
-  $('#annFormTitle').textContent = 'Duyuruyu düzenle';
-  $('#annSubmit').textContent = 'Kaydet';
-  $('#notifyRow').hidden = true;
-  $('#annCancel').hidden = false;
+  $(`#${k.p}FormTitle`).textContent = k.editTitle;
+  $(`#${k.p}Submit`).textContent = 'Kaydet';
+  $(`#${k.p}NotifyRow`).hidden = true;
+  $(`#${k.p}Cancel`).hidden = false;
   form.querySelector('.msg').textContent = '';
-  $('#annCard').scrollIntoView({ behavior: 'smooth' });
+  $(`#${k.p}Card`).scrollIntoView({ behavior: 'smooth' });
   form.title.focus({ preventScroll: true });
 }
 
-function stopEdit() {
-  const form = $('#annForm');
-  editingId = null;
+function stopPostEdit(kind) {
+  const k = POSTS[kind];
+  const form = postForm(kind);
+  editing[kind] = null;
   form.reset();
   form.notify.checked = true;
-  $('#annFormTitle').textContent = 'Yeni duyuru';
-  $('#annSubmit').textContent = 'Yayınla';
-  $('#notifyRow').hidden = false;
-  $('#annCancel').hidden = true;
+  $(`#${k.p}FormTitle`).textContent = k.newTitle;
+  $(`#${k.p}Submit`).textContent = k.submit;
+  $(`#${k.p}NotifyRow`).hidden = false;
+  $(`#${k.p}Cancel`).hidden = true;
 }
 
-$('#annCancel').addEventListener('click', () => {
-  stopEdit();
-  $('#annForm').querySelector('.msg').textContent = '';
-});
+for (const kind of Object.keys(POSTS)) {
+  $(`#${POSTS[kind].p}Cancel`).addEventListener('click', () => {
+    stopPostEdit(kind);
+    postForm(kind).querySelector('.msg').textContent = '';
+  });
+
+  handleForm(postForm(kind), async data => {
+    const body = { sender: data.sender, title: data.title, body: data.body };
+    if (editing[kind]) {
+      await api(`/api/admin/${kind}/${editing[kind]}`, { method: 'PUT', body });
+      stopPostEdit(kind);
+      await Promise.all([loadPosts(kind), loadSenders()]);
+      return 'Kaydedildi.';
+    }
+    const res = await api(`/api/admin/${kind}`, { body: { ...body, notify: data.notify === 'on' } });
+    stopPostEdit(kind);
+    await Promise.all([loadPosts(kind), loadSenders()]);
+    return POSTS[kind].done + (res.push ? ' ' + pushSummary(res.push) : '');
+  });
+}
+
+// Gönderen adı önerileri
+async function loadSenders() {
+  const names = await api('/api/admin/senders');
+  $('#senderList').replaceChildren(...names.map(n => {
+    const o = document.createElement('option');
+    o.value = n;
+    return o;
+  }));
+}
 
 async function loadAdmins() {
   const admins = await api('/api/admin/admins');
@@ -240,6 +277,8 @@ async function loadNews() {
 function startNewsEdit(n) {
   const form = $('#newsForm');
   editingNewsId = n.id;
+  form.sender.value = n.source === 'site' ? '' : n.author || '';
+  form.sender.disabled = n.source === 'site';
   form.title.value = n.title;
   form.summary.value = n.summary || '';
   form.url.value = n.url || '';
@@ -257,6 +296,7 @@ function stopNewsEdit() {
   editingNewsId = null;
   $('#newsForm').reset();
   $('#newsForm').url.disabled = false;
+  $('#newsForm').sender.disabled = false;
   $('#newsFormTitle').textContent = 'Haber ekle';
   $('#newsSubmit').textContent = 'Ekle';
   $('#newsCancel').hidden = true;
@@ -295,7 +335,7 @@ handleForm($('#newsForm'), async data => {
   }
   await api('/api/admin/news', { body: data });
   stopNewsEdit();
-  await loadNews();
+  await Promise.all([loadNews(), loadSenders()]);
   return 'Haber eklendi.';
 });
 
@@ -305,22 +345,6 @@ handleForm($('#loginForm'), async (data, form) => {
   form.reset();
   await showPanel(admin);
   return '';
-});
-
-handleForm($('#annForm'), async (data, form) => {
-  if (editingId) {
-    await api(`/api/admin/announcements/${editingId}`, { method: 'PUT', body: { title: data.title, body: data.body } });
-    stopEdit();
-    await loadAnnouncements();
-    return 'Duyuru güncellendi.';
-  }
-  const res = await api('/api/admin/announcements', {
-    body: { title: data.title, body: data.body, notify: data.notify === 'on' }
-  });
-  form.reset();
-  form.notify.checked = true;
-  await loadAnnouncements();
-  return 'Duyuru yayınlandı.' + (res.push ? ' ' + pushSummary(res.push) : '');
 });
 
 handleForm($('#notifyForm'), async (data, form) => {
