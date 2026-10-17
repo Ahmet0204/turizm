@@ -219,3 +219,28 @@ label.check input { width: 18px; height: 18px; accent-color: var(--primary); }
   cursor: pointer;
   flex-shrink: 0;
 }
+
+.edit-btn {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.item-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.item-body {
+  font-size: 13px;
+  color: var(--text-2);
+  margin-top: 4px;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

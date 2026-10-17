@@ -155,6 +155,16 @@ async function route(request, env, url) {
     return json({ ok: true });
   }
 
+  if (annMatch && method === 'PUT') {
+    const data = await readJson(request);
+    const title = text(data.title, 120, 'Başlık');
+    const body = text(data.body, 2000, 'Metin');
+    const row = await env.DB.prepare('UPDATE announcements SET title = ?, body = ? WHERE id = ? RETURNING id')
+      .bind(title, body, Number(annMatch[1])).first();
+    if (!row) throw new HttpError(404, 'Duyuru bulunamadı');
+    return json({ ok: true });
+  }
+
   if (path === '/api/admin/notify' && method === 'POST') {
     const data = await readJson(request);
     return json(await broadcast(env, {

@@ -44,8 +44,8 @@
     <!-- PANEL -->
     <div id="panelView" hidden>
 
-      <section class="card">
-        <h2>Yeni duyuru</h2>
+      <section class="card" id="annCard">
+        <h2 id="annFormTitle">Yeni duyuru</h2>
         <form id="annForm" class="form">
           <label>Başlık
             <input name="title" maxlength="120" required>
@@ -53,11 +53,12 @@
           <label>Metin
             <textarea name="body" rows="5" maxlength="2000" required></textarea>
           </label>
-          <label class="check">
+          <label class="check" id="notifyRow">
             <input type="checkbox" name="notify" checked>
             <span>Bildirim olarak da gönder <span class="muted" id="subCount"></span></span>
           </label>
-          <button class="btn" type="submit">Yayınla</button>
+          <button class="btn" type="submit" id="annSubmit">Yayınla</button>
+          <button class="edit-btn" type="button" id="annCancel" hidden>Vazgeç</button>
           <p class="msg" role="status"></p>
         </form>
       </section>

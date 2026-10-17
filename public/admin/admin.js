@@ -96,6 +96,10 @@ async function loadAnnouncements() {
     const li = el('li');
     const main = el('div', 'item-main');
     main.append(el('div', 'item-title', a.title), el('div', 'item-meta', `${a.author} · ${formatDate(a.created_at)}`));
+    main.append(el('div', 'item-body', a.body));
+    const edit = el('button', 'edit-btn', 'Düzenle');
+    edit.type = 'button';
+    edit.addEventListener('click', () => startEdit(a));
     const del = el('button', 'del-btn', 'Sil');
     del.type = 'button';
     del.addEventListener('click', async () => {
@@ -103,16 +107,52 @@ async function loadAnnouncements() {
       del.disabled = true;
       try {
         await api(`/api/admin/announcements/${a.id}`, { method: 'DELETE' });
+        if (editingId === a.id) stopEdit();
         await loadAnnouncements();
       } catch (err) {
         alert(err.message);
         del.disabled = false;
       }
     });
-    li.append(main, del);
+    const actions = el('div', 'item-actions');
+    actions.append(edit, del);
+    li.append(main, actions);
     return li;
   }));
 }
+
+// Duyuru düzenleme: "Yeni duyuru" formunu düzenleme moduna alır
+let editingId = null;
+
+function startEdit(a) {
+  const form = $('#annForm');
+  editingId = a.id;
+  form.title.value = a.title;
+  form.body.value = a.body;
+  $('#annFormTitle').textContent = 'Duyuruyu düzenle';
+  $('#annSubmit').textContent = 'Kaydet';
+  $('#notifyRow').hidden = true;
+  $('#annCancel').hidden = false;
+  form.querySelector('.msg').textContent = '';
+  $('#annCard').scrollIntoView({ behavior: 'smooth' });
+  form.title.focus({ preventScroll: true });
+}
+
+function stopEdit() {
+  const form = $('#annForm');
+  editingId = null;
+  form.reset();
+  form.notify.checked = true;
+  $('#annFormTitle').textContent = 'Yeni duyuru';
+  $('#annSubmit').textContent = 'Yayınla';
+  $('#notifyRow').hidden = false;
+  $('#annCancel').hidden = true;
+}
+
+$('#annCancel').addEventListener('click', () => {
+  stopEdit();
+  $('#annForm').querySelector('.msg').textContent = '';
+});
 
 async function loadAdmins() {
   const admins = await api('/api/admin/admins');
@@ -152,6 +192,12 @@ handleForm($('#loginForm'), async (data, form) => {
 });
 
 handleForm($('#annForm'), async (data, form) => {
+  if (editingId) {
+    await api(`/api/admin/announcements/${editingId}`, { method: 'PUT', body: { title: data.title, body: data.body } });
+    stopEdit();
+    await loadAnnouncements();
+    return 'Duyuru güncellendi.';
+  }
   const res = await api('/api/admin/announcements', {
     body: { title: data.title, body: data.body, notify: data.notify === 'on' }
   });
