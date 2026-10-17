@@ -92,6 +92,52 @@ document.getElementById('notifBtn')?.addEventListener('click', () => {
   switchTab('announcements');
 });
 
+// ── Haberler ──────────────────────────────────
+const NEWS_LIMIT = 6;
+
+async function loadNews() {
+  const list = document.getElementById('newsList');
+  if (!list) return;
+  try {
+    const res = await fetch('/api/news');
+    if (!res.ok) throw new Error(res.status);
+    renderNews(await res.json());
+  } catch {
+    list.replaceChildren(el('div', 'ann-empty', 'Haberler yüklenemedi. Bağlantınızı kontrol edin.'));
+  }
+}
+
+function renderNews(items) {
+  const list = document.getElementById('newsList');
+  document.getElementById('newsMore').hidden = !items.length;
+  if (!items.length) {
+    list.replaceChildren(el('div', 'ann-empty', 'Henüz haber yok.'));
+    return;
+  }
+  list.replaceChildren(...items.slice(0, NEWS_LIMIT).map(n => {
+    const card = el(n.url ? 'a' : 'div', 'news-card');
+    if (n.url) {
+      card.href = n.url;
+      card.target = '_blank';
+      card.rel = 'noopener';
+    }
+    if (n.image) {
+      const img = el('img', 'news-img');
+      img.src = n.image;
+      img.alt = '';
+      img.loading = 'lazy';
+      img.addEventListener('error', () => img.remove());
+      card.append(img);
+    }
+    const body = el('div', 'news-body');
+    body.append(el('div', 'news-tag', n.source === 'site' ? 'Fakülte' : 'Duyuru'), el('div', 'news-title', n.title));
+    if (n.summary) body.append(el('div', 'news-summary', n.summary));
+    body.append(el('div', 'news-meta', `${n.source === 'site' ? 'Turizm Fakültesi' : n.author || 'Turizm Fakültesi'} · ${formatDate(n.published_at)}`));
+    card.append(body);
+    return card;
+  }));
+}
+
 // ── Duyurular ─────────────────────────────────
 const LAST_SEEN_KEY = 'turizm:sonGorulenDuyuru';
 let latestAnnouncementId = 0;
@@ -272,6 +318,7 @@ if ('serviceWorker' in navigator) {
 
 // ── Başlangıç ─────────────────────────────────
 updateDate();
+loadNews();
 loadAnnouncements();
 initPush();
 
@@ -280,5 +327,8 @@ if (location.hash === '#duyurular') switchTab('announcements');
 
 // Uygulamaya geri dönülünce duyuruları tazele
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') loadAnnouncements();
+  if (document.visibilityState === 'visible') {
+    loadAnnouncements();
+    loadNews();
+  }
 });

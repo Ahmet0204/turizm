@@ -77,7 +77,7 @@ async function showPanel(admin) {
   $('#logoutBtn').hidden = false;
   $('#whoami').textContent = `${admin.name} · ${admin.role === 'super' ? 'Süper yönetici' : 'Yönetici'}`;
   $('#adminsCard').hidden = admin.role !== 'super';
-  await Promise.all([refreshMe(), loadAnnouncements(), admin.role === 'super' ? loadAdmins() : null]);
+  await Promise.all([refreshMe(), loadAnnouncements(), loadNews(), admin.role === 'super' ? loadAdmins() : null]);
 }
 
 async function refreshMe() {
@@ -182,6 +182,122 @@ async function loadAdmins() {
     return li;
   }));
 }
+
+// ── Haberler ──────────────────────────────────
+let editingNewsId = null;
+
+async function loadNews() {
+  const { items, synced_at } = await api('/api/admin/news');
+  $('#newsSynced').textContent = synced_at ? `Son çekme: ${formatDate(synced_at)}` : 'Henüz siteden çekilmedi';
+  const list = $('#newsList');
+  if (!items.length) {
+    list.replaceChildren(el('li', 'empty', 'Henüz haber yok.'));
+    return;
+  }
+  list.replaceChildren(...items.map(n => {
+    const li = el('li', n.hidden ? 'is-hidden' : '');
+    const main = el('div', 'item-main');
+    const title = el('div', 'item-title', n.title);
+    title.append(el('span', 'role', n.source === 'site' ? 'Site' : 'Panel'));
+    if (n.hidden) title.append(el('span', 'role muted-role', 'Gizli'));
+    main.append(title, el('div', 'item-meta', `${n.source === 'site' ? 'Fakülte sitesi' : n.author} · ${formatDate(n.published_at)}`));
+
+    const actions = el('div', 'item-actions');
+    const edit = el('button', 'edit-btn', 'Düzenle');
+    edit.type = 'button';
+    edit.addEventListener('click', () => startNewsEdit(n));
+    actions.append(edit);
+
+    const btn = (label, className, confirmText, request) => {
+      const b = el('button', className, label);
+      b.type = 'button';
+      b.addEventListener('click', async () => {
+        if (confirmText && !confirm(confirmText)) return;
+        b.disabled = true;
+        try {
+          await api(`/api/admin/news/${n.id}`, request);
+          if (editingNewsId === n.id) stopNewsEdit();
+          await loadNews();
+        } catch (err) {
+          alert(err.message);
+          b.disabled = false;
+        }
+      });
+      return b;
+    };
+    if (n.source === 'site') {
+      actions.append(n.hidden
+        ? btn('Göster', 'edit-btn', null, { method: 'PUT', body: { hidden: false } })
+        : btn('Gizle', 'del-btn', `"${n.title}" uygulamada gizlensin mi?`, { method: 'PUT', body: { hidden: true } }));
+    } else {
+      actions.append(btn('Sil', 'del-btn', `"${n.title}" haberi silinsin mi?`, { method: 'DELETE' }));
+    }
+    li.append(main, actions);
+    return li;
+  }));
+}
+
+function startNewsEdit(n) {
+  const form = $('#newsForm');
+  editingNewsId = n.id;
+  form.title.value = n.title;
+  form.summary.value = n.summary || '';
+  form.url.value = n.url || '';
+  form.url.disabled = n.source === 'site'; // siteden gelen haberin bağlantısı değiştirilemez
+  form.image.value = n.image || '';
+  $('#newsFormTitle').textContent = 'Haberi düzenle';
+  $('#newsSubmit').textContent = 'Kaydet';
+  $('#newsCancel').hidden = false;
+  form.querySelector('.msg').textContent = '';
+  $('#newsCard').scrollIntoView({ behavior: 'smooth' });
+  form.title.focus({ preventScroll: true });
+}
+
+function stopNewsEdit() {
+  editingNewsId = null;
+  $('#newsForm').reset();
+  $('#newsForm').url.disabled = false;
+  $('#newsFormTitle').textContent = 'Haber ekle';
+  $('#newsSubmit').textContent = 'Ekle';
+  $('#newsCancel').hidden = true;
+}
+
+$('#newsCancel').addEventListener('click', () => {
+  stopNewsEdit();
+  $('#newsForm').querySelector('.msg').textContent = '';
+});
+
+$('#newsSyncBtn').addEventListener('click', async () => {
+  const b = $('#newsSyncBtn');
+  const msg = $('#newsSyncMsg');
+  b.disabled = true;
+  msg.className = 'msg';
+  msg.textContent = 'Çekiliyor…';
+  try {
+    const r = await api('/api/admin/news/sync', { method: 'POST' });
+    msg.className = 'msg ok';
+    msg.textContent = `Sitede ${r.found} haber bulundu, ${r.added} yeni haber eklendi.`;
+    await loadNews();
+  } catch (err) {
+    msg.className = 'msg err';
+    msg.textContent = err.message;
+  } finally {
+    b.disabled = false;
+  }
+});
+
+handleForm($('#newsForm'), async data => {
+  if (editingNewsId) {
+    await api(`/api/admin/news/${editingNewsId}`, { method: 'PUT', body: data });
+    stopNewsEdit();
+    await loadNews();
+    return 'Haber güncellendi.';
+  }
+  await api('/api/admin/news', { body: data });
+  stopNewsEdit();
+  await loadNews();
+  return 'Haber eklendi.';
+});
 
 // ── Formlar ───────────────────────────────────
 handleForm($('#loginForm'), async (data, form) => {

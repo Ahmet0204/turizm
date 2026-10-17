@@ -6,6 +6,10 @@
   "observability": {
     "enabled": true
   },
+  // Her saat başı fakülte sitesinden haberleri çek (src/news.js)
+  "triggers": {
+    "crons": ["7 * * * *"]
+  },
   "assets": {
     "directory": "./public",
     "binding": "ASSETS"

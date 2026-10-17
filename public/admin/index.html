@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
-  <meta name="theme-color" content="#8B1A1A">
+  <meta name="theme-color" content="#00407A">
   <title>Yönetici Paneli</title>
   <link rel="stylesheet" href="admin.css">
 </head>
@@ -81,6 +81,36 @@
       <section class="card">
         <h2>Yayındaki duyurular</h2>
         <ul class="list" id="annList"></ul>
+      </section>
+
+      <section class="card" id="newsCard">
+        <h2 id="newsFormTitle">Haber ekle</h2>
+        <p class="muted">Fakülte sitesindeki haberler saatte bir otomatik eklenir. Buradan ayrıca kendi haberinizi ekleyebilirsiniz.</p>
+        <form id="newsForm" class="form">
+          <label>Başlık
+            <input name="title" maxlength="200" required>
+          </label>
+          <label>Özet <span class="muted">(isteğe bağlı)</span>
+            <textarea name="summary" rows="3" maxlength="600"></textarea>
+          </label>
+          <label>Bağlantı <span class="muted">(isteğe bağlı, haberin tamamı için https://…)</span>
+            <input type="url" name="url" maxlength="1000" placeholder="https://">
+          </label>
+          <label>Görsel bağlantısı <span class="muted">(isteğe bağlı, https://…jpg)</span>
+            <input type="url" name="image" maxlength="1000" placeholder="https://">
+          </label>
+          <button class="btn" type="submit" id="newsSubmit">Ekle</button>
+          <button class="edit-btn" type="button" id="newsCancel" hidden>Vazgeç</button>
+          <p class="msg" role="status"></p>
+        </form>
+
+        <h3>Haberler</h3>
+        <div class="sync-row">
+          <span class="muted" id="newsSynced"></span>
+          <button class="edit-btn" type="button" id="newsSyncBtn">Siteden şimdi çek</button>
+        </div>
+        <p class="msg" id="newsSyncMsg" role="status"></p>
+        <ul class="list" id="newsList"></ul>
       </section>
 
       <section class="card" id="adminsCard" hidden>

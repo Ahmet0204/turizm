@@ -3,8 +3,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
-  --primary:     #8B1A1A;
-  --primary-dim: rgba(139,26,26,0.12);
+  --primary:     #00407A;
+  --primary-ink: #005F96;
+  --primary-dim: rgba(8,112,180,0.12);
   --bg:          #F5F5F7;
   --surface:     #FFFFFF;
   --surface-2:   #F0F0F2;
@@ -31,7 +32,8 @@
     --text-3:    #7C7C88;
     --ok:        #66BB6A;
     --err:       #EF5350;
-    --primary-dim: rgba(178,34,34,0.18);
+    --primary-dim: rgba(8,112,180,0.22);
+    --primary-ink: #6CB4E4;
     --shadow:    0 2px 12px rgba(0,0,0,0.30);
     color-scheme: dark;
   }
@@ -47,7 +49,8 @@
   --text-3:    #7C7C88;
   --ok:        #66BB6A;
   --err:       #EF5350;
-  --primary-dim: rgba(178,34,34,0.18);
+  --primary-dim: rgba(8,112,180,0.22);
+  --primary-ink: #6CB4E4;
   --shadow:    0 2px 12px rgba(0,0,0,0.30);
   color-scheme: dark;
 }
@@ -199,7 +202,7 @@ label.check input { width: 18px; height: 18px; accent-color: var(--primary); }
   display: inline-block;
   font-size: 11px;
   font-weight: 600;
-  color: var(--primary);
+  color: var(--primary-ink);
   background: var(--primary-dim);
   border-radius: 20px;
   padding: 1px 8px;
@@ -244,3 +247,7 @@ label.check input { width: 18px; height: 18px; accent-color: var(--primary); }
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+.sync-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+.list li.is-hidden .item-title, .list li.is-hidden .item-meta { opacity: 0.55; }
+.role.muted-role { background: var(--surface-2); color: var(--text-3); }

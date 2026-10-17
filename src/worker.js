@@ -3,6 +3,7 @@
 
 import { hashPassword, verifyPassword, createSession, readSession, SESSION_SECONDS } from './auth.js';
 import { broadcast, isPushEndpoint } from './push.js';
+import { syncNews, SYNC_EVERY } from './news.js';
 
 const COOKIE = 'turizm_sid';
 const MAX_LOGIN_FAILS = 5;
@@ -16,17 +17,22 @@ class HttpError extends Error {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
 
     try {
-      return await route(request, env, url);
+      return await route(request, env, url, ctx);
     } catch (err) {
       if (err instanceof HttpError) return json({ error: err.message }, err.status);
       console.error(err);
       return json({ error: 'Sunucu hatası' }, 500);
     }
+  },
+
+  // Saatlik zamanlayıcı: fakülte sitesinden yeni haberleri çek
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(syncNews(env).then(r => console.log('Haber senkronu', r)));
   }
 };
 
@@ -56,6 +62,23 @@ function text(value, max, field) {
   return s;
 }
 
+// Boş bırakılabilen https bağlantısı
+function optionalUrl(value, field) {
+  const s = typeof value === 'string' ? value.trim() : '';
+  if (!s) return null;
+  let u;
+  try { u = new URL(s); } catch { throw new HttpError(400, `${field} geçerli bir bağlantı değil`); }
+  if (u.protocol !== 'https:') throw new HttpError(400, `${field} https:// ile başlamalı`);
+  if (u.href.length > 1000) throw new HttpError(400, `${field} çok uzun`);
+  return u.href;
+}
+
+function optionalText(value, max, field) {
+  const s = typeof value === 'string' ? value.trim() : '';
+  if (s.length > max) throw new HttpError(400, `${field} en fazla ${max} karakter olabilir`);
+  return s;
+}
+
 function newPassword(value) {
   const s = typeof value === 'string' ? value : '';
   if (s.length < 10) throw new HttpError(400, 'Şifre en az 10 karakter olmalı');
@@ -80,7 +103,7 @@ async function currentAdmin(request, env) {
 }
 
 // ── Yönlendirme ───────────────────────────────
-async function route(request, env, url) {
+async function route(request, env, url, ctx) {
   const path = url.pathname;
   const method = request.method;
 
@@ -92,6 +115,19 @@ async function route(request, env, url) {
   if (path === '/api/announcements' && method === 'GET') {
     const { results } = await env.DB.prepare(
       'SELECT id, title, body, author, created_at FROM announcements ORDER BY id DESC LIMIT 50'
+    ).all();
+    return json(results);
+  }
+
+  if (path === '/api/news' && method === 'GET') {
+    // Zamanlayıcı aksarsa yedek: son senkron eskiyse arka planda yenile
+    const last = await env.DB.prepare("SELECT value FROM meta WHERE key = 'news_synced_at'").first();
+    if (!last || Date.now() / 1000 - Number(last.value) > SYNC_EVERY) {
+      ctx.waitUntil(syncNews(env).catch(err => console.error('Haber senkronu', err)));
+    }
+    const { results } = await env.DB.prepare(
+      `SELECT id, source, url, title, summary, image, author, published_at FROM news
+       WHERE hidden = 0 ORDER BY published_at DESC, id ASC LIMIT 30`
     ).all();
     return json(results);
   }
@@ -163,6 +199,73 @@ async function route(request, env, url) {
       .bind(title, body, Number(annMatch[1])).first();
     if (!row) throw new HttpError(404, 'Duyuru bulunamadı');
     return json({ ok: true });
+  }
+
+  // Haberler: panelden ekleme, düzenleme, gizleme; siteden elle senkron
+  if (path === '/api/admin/news' && method === 'GET') {
+    const { results } = await env.DB.prepare(
+      `SELECT id, source, url, title, summary, image, author, published_at, hidden FROM news
+       ORDER BY published_at DESC, id ASC LIMIT 100`
+    ).all();
+    const last = await env.DB.prepare("SELECT value FROM meta WHERE key = 'news_synced_at'").first();
+    return json({ items: results, synced_at: last ? Number(last.value) : null });
+  }
+
+  if (path === '/api/admin/news' && method === 'POST') {
+    const data = await readJson(request);
+    const row = await env.DB.prepare(
+      `INSERT INTO news (source, url, title, summary, image, author, published_at)
+       VALUES ('manual', ?, ?, ?, ?, ?, unixepoch()) RETURNING id`
+    ).bind(
+      optionalUrl(data.url, 'Bağlantı'), text(data.title, 200, 'Başlık'),
+      optionalText(data.summary, 600, 'Özet'), optionalUrl(data.image, 'Görsel'), admin.name
+    ).first().catch(err => {
+      if (String(err).includes('UNIQUE')) throw new HttpError(409, 'Bu bağlantıyla bir haber zaten var');
+      throw err;
+    });
+    return json({ id: row.id }, 201);
+  }
+
+  if (path === '/api/admin/news/sync' && method === 'POST') {
+    try {
+      return json(await syncNews(env));
+    } catch (err) {
+      console.error(err);
+      throw new HttpError(502, 'Fakülte sitesinden haberler alınamadı: ' + err.message);
+    }
+  }
+
+  const newsMatch = path.match(/^\/api\/admin\/news\/(\d+)$/);
+  if (newsMatch) {
+    const id = Number(newsMatch[1]);
+    const item = await env.DB.prepare('SELECT source FROM news WHERE id = ?').bind(id).first();
+    if (!item) throw new HttpError(404, 'Haber bulunamadı');
+
+    if (method === 'PUT') {
+      const data = await readJson(request);
+      if (typeof data.hidden === 'boolean') {
+        await env.DB.prepare('UPDATE news SET hidden = ? WHERE id = ?').bind(data.hidden ? 1 : 0, id).run();
+        return json({ ok: true });
+      }
+      // Siteden gelen haberin bağlantısı sabit kalır; tekrar eklenmeyi önleyen anahtar odur
+      await env.DB.prepare(
+        `UPDATE news SET title = ?1, summary = ?2, image = ?3, url = CASE WHEN source = 'site' THEN url ELSE ?4 END WHERE id = ?5`
+      ).bind(
+        text(data.title, 200, 'Başlık'), optionalText(data.summary, 600, 'Özet'), optionalUrl(data.image, 'Görsel'),
+        item.source === 'site' ? null : optionalUrl(data.url, 'Bağlantı'), id
+      ).run().catch(err => {
+        if (String(err).includes('UNIQUE')) throw new HttpError(409, 'Bu bağlantıyla bir haber zaten var');
+        throw err;
+      });
+      return json({ ok: true });
+    }
+
+    // Siteden gelen haber silinirse bir sonraki senkronda geri gelir; bu yüzden gizlenir
+    if (method === 'DELETE') {
+      if (item.source === 'site') await env.DB.prepare('UPDATE news SET hidden = 1 WHERE id = ?').bind(id).run();
+      else await env.DB.prepare('DELETE FROM news WHERE id = ?').bind(id).run();
+      return json({ ok: true });
+    }
   }
 
   if (path === '/api/admin/notify' && method === 'POST') {
