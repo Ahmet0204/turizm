@@ -215,7 +215,14 @@ async function initPush() {
   card.hidden = false;
   document.getElementById('pushBtn').addEventListener('click', togglePush);
   const reg = await navigator.serviceWorker.ready;
-  const sub = await reg.pushManager.getSubscription();
+  let sub = await reg.pushManager.getSubscription();
+  // İzin kaldırıldıysa eski abonelik işe yaramaz
+  if (sub && Notification.permission !== 'granted') {
+    await sub.unsubscribe().catch(() => {});
+    sub = null;
+  }
+  // Sunucu aboneliği silmiş olabilir; her açılışta yeniden bildir
+  if (sub) fetch('/api/push/subscribe', postJson(sub.toJSON())).catch(() => {});
   setPushState(Notification.permission === 'denied' ? 'denied' : sub ? 'on' : 'off');
 }
 
