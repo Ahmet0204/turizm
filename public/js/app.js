@@ -34,7 +34,7 @@ function updateHeader(tabId) {
     messages:      'Mesajlar'
   };
   const subtitles = {
-    home:          'Adıyaman Üniversitesi',
+    home:          'Turizm Fakültesi',
     obs:           'Öğrenci Bilgi Sistemi',
     announcements: 'Fakülte Duyuruları',
     messages:      'Gelen Kutusu'
@@ -44,7 +44,7 @@ function updateHeader(tabId) {
   const subtitleEl = document.querySelector('.header-subtitle');
 
   if (titleEl) titleEl.textContent = titles[tabId] || 'ADYÜ';
-  if (subtitleEl) subtitleEl.textContent = subtitles[tabId] || 'Adıyaman Üniversitesi';
+  if (subtitleEl) subtitleEl.textContent = subtitles[tabId] || 'Turizm Fakültesi';
 }
 
 // ── Tarih ─────────────────────────────────────
