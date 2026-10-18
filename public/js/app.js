@@ -69,9 +69,12 @@ function formatDate(unixSeconds) {
 }
 
 // ── OBS Giriş ─────────────────────────────────
+// Giriş üniversitenin OBS sayfasında yapılır (orada "E-Devlet İle Giriş" düğmesi var);
+// e-Devlet oturumu yalnızca obs.adiyaman.edu.tr için açıldığından uygulamanın içine alınamaz
+const OBS_LOGIN_URL = 'https://obs.adiyaman.edu.tr/oibs/std/login.aspx';
+
 function openOBSLogin() {
-  // İleride WebView veya scraping ile entegre edilecek
-  alert('E-Devlet giriş entegrasyonu yakında aktif olacak.');
+  window.open(OBS_LOGIN_URL, '_blank', 'noopener');
 }
 
 // Örnek: OBS bağlı duruma geç (geliştirme için)
