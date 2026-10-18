@@ -435,6 +435,7 @@ function maybeAskForPush() {
 function showPushPrompt() {
   const prompt = document.getElementById('pushPrompt');
   if (!prompt || pushState !== 'off' && pushState !== 'error') return;
+  if (!document.getElementById('installPrompt').hidden) return; // önce yükleme önerisi kapansın
   prompt.hidden = false;
   document.getElementById('pushPromptYes').focus();
 }
@@ -486,6 +487,61 @@ async function togglePush() {
 }
 
 // ── PWA Yükleme ───────────────────────────────
+// Tarayıcıdan açılınca "Uygulamayı yükleyin" önerisi; "Şimdi değil" denirse 7 gün sonra yeniden sorulur
+const INSTALL_ASKED_KEY = 'turizm:yuklemeSoruldu';
+const INSTALL_ASK_AGAIN = 7 * 86400 * 1000;
+const isStandalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+let installEvent = null;
+
+function showInstallPrompt() {
+  const prompt = document.getElementById('installPrompt');
+  if (isStandalone || !prompt.hidden) return;
+  if (Date.now() - Number(storageGet(INSTALL_ASKED_KEY) || 0) < INSTALL_ASK_AGAIN) return;
+  if (!installEvent && !isIos) return;
+  document.getElementById('pushPrompt').hidden = true; // ikisi üst üste açılmasın
+  if (!installEvent) {
+    // iOS'ta yükleme düğmesi yok: Safari'nin Paylaş menüsü kullanılır
+    document.getElementById('installPromptText').textContent =
+      'Alttaki Paylaş düğmesine (kare ve yukarı ok) dokunun, ardından "Ana Ekrana Ekle"yi seçin. ' +
+      'Bildirimler iPhone\'da yalnızca ana ekrana eklenen uygulamada çalışır.';
+    document.getElementById('installPromptYes').textContent = 'Tamam';
+  }
+  prompt.hidden = false;
+  document.getElementById('installPromptYes').focus();
+}
+
+function hideInstallPrompt() {
+  document.getElementById('installPrompt').hidden = true;
+  storageSet(INSTALL_ASKED_KEY, String(Date.now()));
+  maybeAskForPush();
+}
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); // Chrome'un küçük çubuğu yerine kendi önerimizi göster
+  installEvent = e;
+  setTimeout(showInstallPrompt, 800);
+});
+
+window.addEventListener('appinstalled', () => {
+  installEvent = null;
+  document.getElementById('installPrompt').hidden = true;
+});
+
+document.getElementById('installPromptYes').addEventListener('click', async () => {
+  const e = installEvent;
+  installEvent = null;
+  hideInstallPrompt();
+  if (e) {
+    e.prompt();
+    await e.userChoice.catch(() => {});
+  }
+});
+document.getElementById('installPromptNo').addEventListener('click', hideInstallPrompt);
+
+if (isIos && !isStandalone) setTimeout(showInstallPrompt, 1200);
+
 if ('serviceWorker' in navigator) {
   // Yeni sürüm devreye girince sayfayı bir kez yenile (ilk kurulumda değil)
   const hadController = !!navigator.serviceWorker.controller;

@@ -1064,6 +1064,14 @@ button.msg-item {
   color: var(--primary-ink);
 }
 
+.prompt-logo {
+  display: block;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 12px;
+  object-fit: contain;
+}
+
 .prompt-title { font-size: 18px; font-weight: 700; color: var(--text-1); margin-bottom: 8px; }
 .prompt-text  { font-size: 14px; line-height: 1.5; color: var(--text-2); margin-bottom: 18px; }
 

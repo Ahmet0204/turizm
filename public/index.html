@@ -218,6 +218,17 @@
     </div>
   </div>
 
+  <!-- Tarayıcıdan açılınca uygulamayı yükleme önerisi -->
+  <div class="prompt-backdrop" id="installPrompt" hidden>
+    <div class="prompt" role="dialog" aria-modal="true" aria-labelledby="installPromptTitle">
+      <img class="prompt-logo" src="/img/logo.png" alt="" width="64" height="64">
+      <h2 class="prompt-title" id="installPromptTitle">Uygulamayı yükleyin</h2>
+      <p class="prompt-text" id="installPromptText">Turizm Fakültesi uygulamasını telefonunuza ekleyin; duyurulara ve mesajlara ana ekrandan tek dokunuşla ulaşın.</p>
+      <button class="prompt-yes" id="installPromptYes" type="button">Yükle</button>
+      <button class="prompt-no" id="installPromptNo" type="button">Şimdi değil</button>
+    </div>
+  </div>
+
   <!-- Mesaj okuma ekranı -->
   <div class="msg-sheet" id="msgSheet" role="dialog" aria-modal="true" aria-labelledby="msgSheetTitle" hidden>
     <div class="msg-sheet-bar">
