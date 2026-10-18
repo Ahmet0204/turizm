@@ -426,7 +426,7 @@ const PUSH_ASKED_KEY = 'turizm:bildirimSoruldu';
 const PUSH_ASK_AGAIN = 7 * 86400 * 1000;
 
 function maybeAskForPush() {
-  if (!installCheckDone) return; // önce yükleme önerisi
+  if (!isStandalone) return; // yalnızca ana ekrana kurulan uygulamada sorulur
   if (pushState !== 'off' || Notification.permission !== 'default') return;
   const asked = Number(storageGet(PUSH_ASKED_KEY) || 0);
   if (Date.now() - asked < PUSH_ASK_AGAIN) return;
@@ -488,7 +488,7 @@ async function togglePush() {
 }
 
 // ── PWA Yükleme ───────────────────────────────
-// Tarayıcıdan açılınca önce "Uygulamayı yükleyin", ardından bildirim izni sorulur.
+// Tarayıcıdan açılınca "Uygulamayı yükleyin" önerisi; bildirim izni kurulan uygulamada sorulur.
 // "Şimdi değil" denirse 7 gün sonra yeniden sorulur.
 const INSTALL_ASKED_KEY = 'turizm:yuklemeSoruldu';
 const INSTALL_ASK_AGAIN = 7 * 86400 * 1000;
@@ -499,13 +499,11 @@ const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
 const isAndroid = /Android/.test(navigator.userAgent);
 const installRecentlyAsked = () => Date.now() - Number(storageGet(INSTALL_ASKED_KEY) || 0) < INSTALL_ASK_AGAIN;
 let installEvent = null;
-// Yükleme önerisi bitene (ya da gerekmediği anlaşılana) kadar bildirim sorusu bekler
+// Öneri gösterildi ya da gerekmediği anlaşıldı
 let installCheckDone = isStandalone || installRecentlyAsked() || !(isAndroid || isIos);
 
 function finishInstallCheck() {
-  if (installCheckDone) return;
   installCheckDone = true;
-  maybeAskForPush();
 }
 
 function showInstallPrompt() {
