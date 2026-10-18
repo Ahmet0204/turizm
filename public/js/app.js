@@ -436,7 +436,6 @@ function maybeAskForPush() {
 function showPushPrompt() {
   const prompt = document.getElementById('pushPrompt');
   if (!prompt || pushState !== 'off' && pushState !== 'error') return;
-  if (!document.getElementById('installPrompt').hidden) return; // önce yükleme önerisi kapansın
   prompt.hidden = false;
   document.getElementById('pushPromptYes').focus();
 }
@@ -488,83 +487,64 @@ async function togglePush() {
 }
 
 // ── PWA Yükleme ───────────────────────────────
-// Tarayıcıdan açılınca "Uygulamayı yükleyin" önerisi; bildirim izni kurulan uygulamada sorulur.
-// "Şimdi değil" denirse 7 gün sonra yeniden sorulur.
-const INSTALL_ASKED_KEY = 'turizm:yuklemeSoruldu';
-const INSTALL_ASK_AGAIN = 7 * 86400 * 1000;
-const INSTALL_WAIT = 4000; // Chrome'un yükleme sinyali için beklenen süre
+// Tarayıcıda üst çubukta "Uygulamayı İndir" düğmesi; kurulan uygulamada görünmez.
+// Bildirim izni yalnızca kurulan uygulamada sorulur.
 const isStandalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const isAndroid = /Android/.test(navigator.userAgent);
-const installRecentlyAsked = () => Date.now() - Number(storageGet(INSTALL_ASKED_KEY) || 0) < INSTALL_ASK_AGAIN;
+const installBtn = document.getElementById('installBtn');
 let installEvent = null;
-// Öneri gösterildi ya da gerekmediği anlaşıldı
-let installCheckDone = isStandalone || installRecentlyAsked() || !(isAndroid || isIos);
 
-function finishInstallCheck() {
-  installCheckDone = true;
+function showInstallBtn(show) {
+  installBtn.hidden = isStandalone || !show;
 }
 
-function showInstallPrompt() {
-  const prompt = document.getElementById('installPrompt');
-  if (isStandalone || !prompt.hidden) return;
-  if (installRecentlyAsked()) return finishInstallCheck();
-  document.getElementById('pushPrompt').hidden = true; // ikisi üst üste açılmasın
-  if (!installEvent) {
-    // Yükleme düğmesi yok: tarayıcının menüsü tarif edilir
-    document.getElementById('installPromptText').textContent = isIos
-      ? 'Alttaki Paylaş düğmesine (kare ve yukarı ok) dokunun, ardından "Ana Ekrana Ekle"yi seçin. ' +
-        'Bildirimler iPhone\'da yalnızca ana ekrana eklenen uygulamada çalışır.'
-      : 'Tarayıcının menüsünü (⋮ veya ≡) açıp "Uygulamayı yükle" ya da "Ana ekrana ekle"yi seçin. ' +
-        'WhatsApp veya Instagram içinden açtıysanız önce "Chrome\'da aç"ı seçin.';
-    document.getElementById('installPromptYes').textContent = 'Tamam';
-  }
-  prompt.hidden = false;
-  document.getElementById('installPromptYes').focus();
+// Yükleme düğmesi olmayan tarayıcılarda nasıl yükleneceğini anlatır
+function showInstallHelp() {
+  document.getElementById('installPromptText').textContent = isIos
+    ? 'Alttaki Paylaş düğmesine (kare ve yukarı ok) dokunun, ardından "Ana Ekrana Ekle"yi seçin. ' +
+      'Bildirimler iPhone\'da yalnızca ana ekrana eklenen uygulamada çalışır.'
+    : 'Tarayıcının menüsünü (⋮ veya ≡) açıp "Uygulamayı yükle" ya da "Ana ekrana ekle"yi seçin. ' +
+      'WhatsApp veya Instagram içinden açtıysanız önce "Chrome\'da aç"ı seçin.';
+  document.getElementById('installPrompt').hidden = false;
+  document.getElementById('installPromptOk').focus();
 }
 
-function hideInstallPrompt() {
+installBtn.addEventListener('click', async () => {
+  if (!installEvent) return showInstallHelp();
+  const e = installEvent;
+  installEvent = null;
+  e.prompt();
+  const choice = await e.userChoice.catch(() => null);
+  if (choice?.outcome === 'accepted') showInstallBtn(false);
+});
+
+document.getElementById('installPromptOk').addEventListener('click', () => {
   document.getElementById('installPrompt').hidden = true;
-  storageSet(INSTALL_ASKED_KEY, String(Date.now()));
-  finishInstallCheck();
-}
+});
 
 window.addEventListener('beforeinstallprompt', e => {
-  e.preventDefault(); // Chrome'un küçük çubuğu yerine kendi önerimizi göster
+  e.preventDefault(); // Chrome'un küçük çubuğu yerine kendi düğmemiz
   installEvent = e;
-  showInstallPrompt();
+  showInstallBtn(true);
 });
 
 window.addEventListener('appinstalled', () => {
   installEvent = null;
-  document.getElementById('installPrompt').hidden = true;
-  finishInstallCheck();
+  showInstallBtn(false);
 });
 
-document.getElementById('installPromptYes').addEventListener('click', async () => {
-  const e = installEvent;
-  installEvent = null;
-  hideInstallPrompt();
-  if (e) {
-    e.prompt();
-    await e.userChoice.catch(() => {});
-  }
-});
-document.getElementById('installPromptNo').addEventListener('click', hideInstallPrompt);
-
-// Yükleme sinyali gelmezse: iPhone'da ya da kurulu olmayan Android'de menü tarifini göster
-if (!installCheckDone) {
-  setTimeout(async () => {
-    if (installEvent) return;
+// iPhone'da ve yükleme sinyali vermeyen Android tarayıcılarında düğme tarif gösterir
+if (isIos) showInstallBtn(true);
+if (isAndroid && !isStandalone) {
+  (async () => {
     try {
       // manifest'teki related_applications sayesinde kurulu uygulama burada görünür
-      if (isAndroid && navigator.getInstalledRelatedApps && (await navigator.getInstalledRelatedApps()).length) {
-        return finishInstallCheck();
-      }
+      if (navigator.getInstalledRelatedApps && (await navigator.getInstalledRelatedApps()).length) return;
     } catch { /* desteklenmiyor */ }
-    showInstallPrompt();
-  }, isIos ? 1200 : INSTALL_WAIT);
+    showInstallBtn(true);
+  })();
 }
 
 if ('serviceWorker' in navigator) {

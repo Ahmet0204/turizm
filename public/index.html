@@ -29,6 +29,10 @@
         </div>
       </div>
       <div class="header-actions">
+        <button class="install-btn" id="installBtn" type="button" hidden>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>
+          <span><span class="install-long">Uygulamayı </span>İndir</span>
+        </button>
         <button class="icon-btn" id="notifBtn" aria-label="Bildirimler">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
@@ -218,14 +222,13 @@
     </div>
   </div>
 
-  <!-- Tarayıcıdan açılınca uygulamayı yükleme önerisi -->
+  <!-- Yükleme düğmesi olmayan tarayıcılarda nasıl yükleneceği -->
   <div class="prompt-backdrop" id="installPrompt" hidden>
     <div class="prompt" role="dialog" aria-modal="true" aria-labelledby="installPromptTitle">
       <img class="prompt-logo" src="/img/logo.png" alt="" width="64" height="64">
       <h2 class="prompt-title" id="installPromptTitle">Uygulamayı yükleyin</h2>
-      <p class="prompt-text" id="installPromptText">Turizm Fakültesi uygulamasını telefonunuza ekleyin; duyurulara ve mesajlara ana ekrandan tek dokunuşla ulaşın.</p>
-      <button class="prompt-yes" id="installPromptYes" type="button">Yükle</button>
-      <button class="prompt-no" id="installPromptNo" type="button">Şimdi değil</button>
+      <p class="prompt-text" id="installPromptText"></p>
+      <button class="prompt-yes" id="installPromptOk" type="button">Tamam</button>
     </div>
   </div>
 
