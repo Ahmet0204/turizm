@@ -495,13 +495,21 @@ const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 let installEvent = null;
 
-function showInstallPrompt() {
+const isAndroid = /Android/.test(navigator.userAgent);
+
+function showInstallPrompt(manual = false) {
   const prompt = document.getElementById('installPrompt');
   if (isStandalone || !prompt.hidden) return;
   if (Date.now() - Number(storageGet(INSTALL_ASKED_KEY) || 0) < INSTALL_ASK_AGAIN) return;
-  if (!installEvent && !isIos) return;
+  if (!installEvent && !isIos && !manual) return;
   document.getElementById('pushPrompt').hidden = true; // ikisi üst üste açılmasın
-  if (!installEvent) {
+  if (!installEvent && !isIos) {
+    // Chrome yükleme sinyali vermediyse (Samsung İnternet, uygulama içi tarayıcılar vb.) menüyü tarif et
+    document.getElementById('installPromptText').textContent =
+      'Tarayıcının menüsünü (⋮ veya ≡) açıp "Uygulamayı yükle" ya da "Ana ekrana ekle"yi seçin. ' +
+      'WhatsApp veya Instagram içinden açtıysanız önce "Chrome\'da aç"ı seçin.';
+    document.getElementById('installPromptYes').textContent = 'Tamam';
+  } else if (!installEvent) {
     // iOS'ta yükleme düğmesi yok: Safari'nin Paylaş menüsü kullanılır
     document.getElementById('installPromptText').textContent =
       'Alttaki Paylaş düğmesine (kare ve yukarı ok) dokunun, ardından "Ana Ekrana Ekle"yi seçin. ' +
@@ -541,6 +549,18 @@ document.getElementById('installPromptYes').addEventListener('click', async () =
 document.getElementById('installPromptNo').addEventListener('click', hideInstallPrompt);
 
 if (isIos && !isStandalone) setTimeout(showInstallPrompt, 1200);
+
+// Android'de birkaç saniye içinde yükleme sinyali gelmezse: uygulama kurulu değilse menü tarifini göster
+if (isAndroid && !isStandalone) {
+  setTimeout(async () => {
+    if (installEvent) return;
+    try {
+      // manifest'teki related_applications sayesinde kurulu uygulama burada görünür
+      if (navigator.getInstalledRelatedApps && (await navigator.getInstalledRelatedApps()).length) return;
+    } catch { /* desteklenmiyor */ }
+    showInstallPrompt(true);
+  }, 6000);
+}
 
 if ('serviceWorker' in navigator) {
   // Yeni sürüm devreye girince sayfayı bir kez yenile (ilk kurulumda değil)

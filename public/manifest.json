@@ -24,6 +24,12 @@
       "purpose": "any"
     }
   ],
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "https://turizm.tokmak.workers.dev/manifest.json"
+    }
+  ],
   "categories": [
     "education"
   ],
