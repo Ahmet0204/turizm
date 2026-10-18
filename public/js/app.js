@@ -501,12 +501,33 @@ function showInstallBtn(show) {
 }
 
 // Yükleme düğmesi olmayan tarayıcılarda nasıl yükleneceğini anlatır
+function installSteps() {
+  const ua = navigator.userAgent;
+  const share = 'Paylaş (□↑)';
+  if (!isIos) {
+    return ['Tarayıcının menüsünü (⋮ veya ≡) açın.', '"Uygulamayı yükle" ya da "Ana ekrana ekle"yi seçin.',
+      'WhatsApp veya Instagram içinden açtıysanız önce "Chrome\'da aç"ı seçin.'];
+  }
+  // Uygulama içi tarayıcılarda (Instagram, Facebook, Google uygulaması…) ana ekrana ekleme yok
+  if (/Instagram|FBAN|FBAV|GSA\/|Line\//.test(ua)) {
+    return ['Sağ üstteki menüden (⋯) "Safari\'de aç"ı seçin.', 'Açılan Safari sayfasında "İndir"e yeniden dokunun.'];
+  }
+  if (/CriOS/.test(ua)) return [`Adres çubuğunun sağındaki ${share} simgesine dokunun.`, '"Ana Ekrana Ekle"yi seçin.', '"Ekle"ye dokunun.'];
+  if (/FxiOS|EdgiOS/.test(ua)) return ['Alttaki menü (≡ veya ⋯) düğmesine dokunun.', `${share}'ı seçin.`, '"Ana Ekrana Ekle"ye dokunun.'];
+  // Safari 26 ile Paylaş düğmesi ⋯ menüsünün içine taşındı
+  const safari = Number(ua.match(/Version\/(\d+)/)?.[1] || 0);
+  return safari >= 26
+    ? ['Adres çubuğunun yanındaki ⋯ düğmesine dokunun.', `${share}'ı seçin.`,
+       'Listede "Ana Ekrana Ekle"yi bulun (gerekirse "Daha Fazla"ya dokunun).', '"Ekle"ye dokunun.']
+    : [`Alttaki ${share} düğmesine dokunun.`, 'Aşağı kaydırıp "Ana Ekrana Ekle"yi seçin.', '"Ekle"ye dokunun.'];
+}
+
 function showInstallHelp() {
-  document.getElementById('installPromptText').textContent = isIos
-    ? 'Alttaki Paylaş düğmesine (kare ve yukarı ok) dokunun, ardından "Ana Ekrana Ekle"yi seçin. ' +
-      'Bildirimler iPhone\'da yalnızca ana ekrana eklenen uygulamada çalışır.'
-    : 'Tarayıcının menüsünü (⋮ veya ≡) açıp "Uygulamayı yükle" ya da "Ana ekrana ekle"yi seçin. ' +
-      'WhatsApp veya Instagram içinden açtıysanız önce "Chrome\'da aç"ı seçin.';
+  const box = document.getElementById('installPromptText');
+  const ol = el('ol', 'prompt-steps');
+  ol.append(...installSteps().map(s => el('li', null, s)));
+  box.replaceChildren(ol);
+  if (isIos) box.append(el('p', 'prompt-note', 'Bildirimler iPhone\'da yalnızca ana ekrana eklenen uygulamada çalışır.'));
   document.getElementById('installPrompt').hidden = false;
   document.getElementById('installPromptOk').focus();
 }

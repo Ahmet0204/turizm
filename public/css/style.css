@@ -1107,6 +1107,15 @@ button.msg-item {
 .prompt-title { font-size: 18px; font-weight: 700; color: var(--text-1); margin-bottom: 8px; }
 .prompt-text  { font-size: 14px; line-height: 1.5; color: var(--text-2); margin-bottom: 18px; }
 
+.prompt-steps {
+  text-align: left;
+  margin: 0;
+  padding-left: 22px;
+  color: var(--text-1);
+}
+.prompt-steps li { margin-bottom: 6px; }
+.prompt-note { margin-top: 10px; font-size: 13px; }
+
 .prompt-yes, .prompt-no {
   display: block;
   width: 100%;
