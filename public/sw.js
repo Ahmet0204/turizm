@@ -1,6 +1,6 @@
 /* ADYÜ Mobil PWA — Service Worker */
 
-const CACHE_NAME = 'adyu-mobil-v24';
+const CACHE_NAME = 'adyu-mobil-v25';
 const ASSETS = [
   '/',
   '/index.html',
@@ -9,6 +9,7 @@ const ASSETS = [
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
+  '/icons/badge-96.png',
   '/img/logo.png'
 ];
 
@@ -64,7 +65,7 @@ self.addEventListener('push', event => {
   const options = {
     body: data.body || '',
     icon: '/icons/icon-192.png',
-    badge: '/icons/icon-192.png',
+    badge: '/icons/badge-96.png', // Android yalnızca şeklini (saydamlık) kullanır
     data: { url: data.url || '/' }
   };
   event.waitUntil(self.registration.showNotification(title, options));
