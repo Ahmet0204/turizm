@@ -1,6 +1,6 @@
 /* ADYÜ Mobil PWA — Service Worker */
 
-const CACHE_NAME = 'adyu-mobil-v26';
+const CACHE_NAME = 'adyu-mobil-v28';
 const ASSETS = [
   '/',
   '/index.html',

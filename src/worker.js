@@ -19,6 +19,8 @@ class HttpError extends Error {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    // Kısa indirme bağlantısı (QR kod buraya yönlenir)
+    if (url.pathname === '/indir' || url.pathname === '/indir/') return Response.redirect(url.origin + '/?indir', 302);
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
 
     try {

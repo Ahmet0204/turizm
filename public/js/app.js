@@ -532,20 +532,34 @@ function showInstallHelp() {
   ol.append(...installSteps().map(s => el('li', null, s)));
   box.replaceChildren(ol);
   if (isIos) box.append(el('p', 'prompt-note', 'Bildirimler iPhone\'da yalnızca ana ekrana eklenen uygulamada çalışır.'));
+  openInstallPrompt('Tamam', false);
+}
+
+// okLabel: ana düğme; withCancel: "Şimdi değil" görünsün mü; action: ana düğmeye basınca
+let installPromptAction = null;
+function openInstallPrompt(okLabel, withCancel, action = null) {
+  installPromptAction = action;
+  document.getElementById('installPromptOk').textContent = okLabel;
+  document.getElementById('installPromptNo').hidden = !withCancel;
   document.getElementById('installPrompt').hidden = false;
   document.getElementById('installPromptOk').focus();
 }
 
-installBtn.addEventListener('click', async () => {
-  if (!installEvent) return showInstallHelp();
+async function runInstall() {
   const e = installEvent;
   installEvent = null;
   e.prompt();
   const choice = await e.userChoice.catch(() => null);
   if (choice?.outcome === 'accepted') showInstallBtn(false);
-});
+}
+
+installBtn.addEventListener('click', () => installEvent ? runInstall() : showInstallHelp());
 
 document.getElementById('installPromptOk').addEventListener('click', () => {
+  document.getElementById('installPrompt').hidden = true;
+  if (installPromptAction) installPromptAction();
+});
+document.getElementById('installPromptNo').addEventListener('click', () => {
   document.getElementById('installPrompt').hidden = true;
 });
 
@@ -570,6 +584,36 @@ if (isAndroid && !isStandalone) {
     } catch { /* desteklenmiyor */ }
     showInstallBtn(true);
   })();
+}
+
+// /indir bağlantısı (QR kod): yükleme penceresi doğrudan açılır.
+// Tarayıcılar kurulumu ancak bir dokunuşla başlatır, bu yüzden tek düğmeli pencere gösterilir.
+async function openInstallSheet() {
+  if (!installEvent && !isIos) {
+    // Chrome'un yükleme sinyalini kısa süre bekle
+    await new Promise(resolve => {
+      const t = setTimeout(resolve, 3000);
+      window.addEventListener('beforeinstallprompt', () => { clearTimeout(t); resolve(); }, { once: true });
+    });
+    if (!installEvent) {
+      try {
+        if (navigator.getInstalledRelatedApps && (await navigator.getInstalledRelatedApps()).length) {
+          document.getElementById('installPromptText').textContent =
+            'Uygulama bu telefonda zaten yüklü. Ana ekranınızdaki Turizm Fakültesi simgesinden açabilirsiniz.';
+          return openInstallPrompt('Tamam', false);
+        }
+      } catch { /* desteklenmiyor */ }
+    }
+  }
+  if (!installEvent) return showInstallHelp();
+  document.getElementById('installPromptText').textContent =
+    'Duyurulara, mesajlara ve OBS\'ye ana ekranınızdan tek dokunuşla ulaşın; yeni duyurularda bildirim alın.';
+  openInstallPrompt('Yükle', true, () => installEvent && runInstall());
+}
+
+if (new URLSearchParams(location.search).has('indir')) {
+  history.replaceState(null, '', '/');
+  if (!isStandalone) openInstallSheet();
 }
 
 if ('serviceWorker' in navigator) {
