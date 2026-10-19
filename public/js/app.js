@@ -425,7 +425,8 @@ async function initPush() {
 }
 
 // İlk açılışta (ve "Şimdi değil" denirse bir hafta sonra) bildirimleri açmayı öner
-const PUSH_ASKED_KEY = 'turizm:bildirimSoruldu';
+// Tarayıcıda verilen 'Şimdi değil' kurulan uygulamanın ilk açılışını etkilemesin diye ayrı anahtar
+const PUSH_ASKED_KEY = 'turizm:bildirimSoruldu:uygulama';
 const PUSH_ASK_AGAIN = 7 * 86400 * 1000;
 
 function maybeAskForPush() {
