@@ -7,6 +7,9 @@ import { syncNews, SYNC_EVERY, FEED_SQL, FEEDS_SIGNATURE } from './news.js';
 
 const COOKIE = 'turizm_sid';
 const MAX_LOGIN_FAILS = 5;
+// IP değiştirerek sınırı aşmaya karşı hesap (e-posta) başına da sınır.
+// Meşru yöneticinin yanlış yazarak kilitlenmemesi için eşik daha yüksek.
+const MAX_LOGIN_FAILS_EMAIL = 20;
 const LOGIN_FAIL_WINDOW = 15 * 60;
 // Abonelik sel saldırısına karşı IP başına sınır. Kampüs WiFi'sinde çok sayıda
 // öğrenci tek IP'den geldiği için bir sınıfın aynı anda kurulumunu engellemeyecek kadar geniş.
@@ -153,9 +156,15 @@ async function route(request, env, url, ctx) {
   const path = url.pathname;
   const method = request.method;
 
-  // Başka sitelerden gelen yazma isteklerini reddet
-  const origin = request.headers.get('Origin');
-  if (method !== 'GET' && origin && origin !== url.origin) throw new HttpError(403, 'İzin verilmeyen kaynak');
+  // Başka sitelerden gelen yazma isteklerini reddet. Origin yoksa Referer'a düş;
+  // ikisi de aynı kökenle eşleşmezse (ör. hiç yoksa) isteği reddet.
+  if (method !== 'GET') {
+    const origin = request.headers.get('Origin');
+    const referer = request.headers.get('Referer');
+    const sameOrigin = origin ? origin === url.origin
+      : (referer ? referer.startsWith(url.origin + '/') : false);
+    if (!sameOrigin) throw new HttpError(403, 'İzin verilmeyen kaynak');
+  }
 
   // Herkese açık
   const publicPosts = path.match(/^\/api\/(announcements|messages)$/);
@@ -428,6 +437,12 @@ async function login(request, env) {
 
   const data = await readJson(request);
   const email = String(data.email || '').trim().toLowerCase();
+  const emailKey = 'login:em:' + email;
+  // Aynı hesaba farklı IP'lerden dağıtılmış denemeler de sınırlansın
+  if (email && await rateLimited(env, emailKey, MAX_LOGIN_FAILS_EMAIL, LOGIN_FAIL_WINDOW, now)) {
+    throw new HttpError(429, 'Bu hesap için çok fazla hatalı deneme. 15 dakika sonra tekrar deneyin.');
+  }
+
   const admin = await env.DB.prepare('SELECT * FROM admins WHERE email = ?').bind(email).first();
   // E-posta kayıtlı değilse de şifre doğrulaması çalıştırılır: yanıt süresi aynı kalsın,
   // böylece "bu e-posta kayıtlı mı" bilgisi zamanlamadan sızmasın.
@@ -439,10 +454,14 @@ async function login(request, env) {
 
   if (!ok) {
     await rateBump(env, 'login:' + ip, LOGIN_FAIL_WINDOW, now);
+    if (email) await rateBump(env, emailKey, LOGIN_FAIL_WINDOW, now);
     throw new HttpError(401, 'E-posta veya şifre hatalı');
   }
 
-  await env.DB.prepare('DELETE FROM login_fails WHERE ip = ?').bind('login:' + ip).run();
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM login_fails WHERE ip = ?').bind('login:' + ip),
+    env.DB.prepare('DELETE FROM login_fails WHERE ip = ?').bind(emailKey)
+  ]);
   const token = await createSession(env.SESSION_SECRET, admin);
   return json(publicAdmin(admin), 200, { 'Set-Cookie': sessionCookie(token, SESSION_SECONDS) });
 }
