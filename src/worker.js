@@ -8,6 +8,14 @@ import { syncNews, SYNC_EVERY, FEED_SQL, FEEDS_SIGNATURE } from './news.js';
 const COOKIE = 'turizm_sid';
 const MAX_LOGIN_FAILS = 5;
 const LOGIN_FAIL_WINDOW = 15 * 60;
+// Abonelik sel saldırısına karşı IP başına sınır. Kampüs WiFi'sinde çok sayıda
+// öğrenci tek IP'den geldiği için bir sınıfın aynı anda kurulumunu engellemeyecek kadar geniş.
+const MAX_SUBSCRIBES = 50;
+const SUBSCRIBE_WINDOW = 10 * 60;
+// Kayıtlı olmayan e-postada da şifre doğrulama süresi harcansın diye sahte özet
+// (kullanıcı tespitine yol açan zaman sızıntısını önler). Gerçek bir şifreyle eşleşmez.
+const DUMMY_SALT = '00000000000000000000000000000000';
+const DUMMY_HASH = '0000000000000000000000000000000000000000000000000000000000000000';
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -103,6 +111,21 @@ function missingTable(err) {
   throw err;
 }
 
+// ── Hız sınırı (login_fails tablosunu ortak kullanır; anahtar ör. 'login:<ip>', 'sub:<ip>') ──
+async function rateLimited(env, key, max, windowSecs, now) {
+  const row = await env.DB.prepare('SELECT count, window_start FROM login_fails WHERE ip = ?').bind(key).first();
+  return !!(row && now - row.window_start < windowSecs && row.count >= max);
+}
+
+async function rateBump(env, key, windowSecs, now) {
+  await env.DB.prepare(
+    `INSERT INTO login_fails (ip, count, window_start) VALUES (?1, 1, ?2)
+     ON CONFLICT(ip) DO UPDATE SET
+       count = CASE WHEN ?2 - window_start >= ?3 THEN 1 ELSE count + 1 END,
+       window_start = CASE WHEN ?2 - window_start >= ?3 THEN ?2 ELSE window_start END`
+  ).bind(key, now, windowSecs).run();
+}
+
 async function hasTable(env, name) {
   return !!await env.DB.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").bind(name).first();
 }
@@ -168,6 +191,12 @@ async function route(request, env, url, ctx) {
   if (path === '/api/push/key' && method === 'GET') return json({ key: env.VAPID_PUBLIC_KEY });
 
   if (path === '/api/push/subscribe' && method === 'POST') {
+    const subIp = request.headers.get('CF-Connecting-IP') || 'bilinmiyor';
+    const subNow = Math.floor(Date.now() / 1000);
+    if (await rateLimited(env, 'sub:' + subIp, MAX_SUBSCRIBES, SUBSCRIBE_WINDOW, subNow)) {
+      throw new HttpError(429, 'Çok fazla istek. Birazdan tekrar deneyin.');
+    }
+    await rateBump(env, 'sub:' + subIp, SUBSCRIBE_WINDOW, subNow);
     const { endpoint, keys } = await readJson(request);
     const valid = isPushEndpoint(endpoint) && endpoint.length <= 1000 &&
       typeof keys?.p256dh === 'string' && keys.p256dh.length <= 200 &&
@@ -393,27 +422,27 @@ async function login(request, env) {
   const ip = request.headers.get('CF-Connecting-IP') || 'bilinmiyor';
   const now = Math.floor(Date.now() / 1000);
 
-  const fails = await env.DB.prepare('SELECT count, window_start FROM login_fails WHERE ip = ?').bind(ip).first();
-  if (fails && now - fails.window_start < LOGIN_FAIL_WINDOW && fails.count >= MAX_LOGIN_FAILS) {
+  if (await rateLimited(env, 'login:' + ip, MAX_LOGIN_FAILS, LOGIN_FAIL_WINDOW, now)) {
     throw new HttpError(429, 'Çok fazla hatalı deneme. 15 dakika sonra tekrar deneyin.');
   }
 
   const data = await readJson(request);
   const email = String(data.email || '').trim().toLowerCase();
   const admin = await env.DB.prepare('SELECT * FROM admins WHERE email = ?').bind(email).first();
-  const ok = admin && await verifyPassword(String(data.password || ''), admin.pass_hash, admin.salt);
+  // E-posta kayıtlı değilse de şifre doğrulaması çalıştırılır: yanıt süresi aynı kalsın,
+  // böylece "bu e-posta kayıtlı mı" bilgisi zamanlamadan sızmasın.
+  const ok = await verifyPassword(
+    String(data.password || ''),
+    admin ? admin.pass_hash : DUMMY_HASH,
+    admin ? admin.salt : DUMMY_SALT
+  ) && !!admin;
 
   if (!ok) {
-    await env.DB.prepare(
-      `INSERT INTO login_fails (ip, count, window_start) VALUES (?1, 1, ?2)
-       ON CONFLICT(ip) DO UPDATE SET
-         count = CASE WHEN ?2 - window_start >= ${LOGIN_FAIL_WINDOW} THEN 1 ELSE count + 1 END,
-         window_start = CASE WHEN ?2 - window_start >= ${LOGIN_FAIL_WINDOW} THEN ?2 ELSE window_start END`
-    ).bind(ip, now).run();
+    await rateBump(env, 'login:' + ip, LOGIN_FAIL_WINDOW, now);
     throw new HttpError(401, 'E-posta veya şifre hatalı');
   }
 
-  await env.DB.prepare('DELETE FROM login_fails WHERE ip = ?').bind(ip).run();
+  await env.DB.prepare('DELETE FROM login_fails WHERE ip = ?').bind('login:' + ip).run();
   const token = await createSession(env.SESSION_SECRET, admin);
   return json(publicAdmin(admin), 200, { 'Set-Cookie': sessionCookie(token, SESSION_SECONDS) });
 }
