@@ -101,21 +101,74 @@ document.getElementById('notifBtn')?.addEventListener('click', () => {
   else switchTab('announcements');
 });
 
-// ── Haberler: Üniversiteden / Fakülteden sekmeleri ──
-const NEWS_LIMIT = 6;
-const FEED_KEY = 'turizm:duyuruSekmesi';
-const FEED_LINKS = {
-  uni:     'https://adiyaman.edu.tr/tr/duyurular',
-  fakulte: 'https://turizm.adiyaman.edu.tr/tr/duyurular'
+// ── Bölüm ─────────────────────────────────────
+// Öğrenci bölümünü seçer; ana sayfa, duyurular, mesajlar ve bildirimler buna göre gelir.
+// src/departments.js ile aynı tutulmalı.
+const DEPARTMENTS = {
+  isletme:    { name: 'Turizm İşletmeciliği',           slug: 'turizm-isletmeciligi' },
+  gastronomi: { name: 'Gastronomi ve Mutfak Sanatları', slug: 'gastronomi-ve-mutfak-sanatlari' },
+  rehberlik:  { name: 'Turizm Rehberliği',              slug: 'turizm-rehberligi' }
 };
+const DEPT_KEY = 'turizm:bolum';
+let department = Object.hasOwn(DEPARTMENTS, storageGet(DEPT_KEY) || '') ? storageGet(DEPT_KEY) : null;
+const bolumQuery = () => department ? '?bolum=' + department : '';
+
+function renderDeptSwitch() {
+  const btn = document.getElementById('deptSwitch');
+  if (btn) btn.textContent = department ? DEPARTMENTS[department].name : 'Bölüm seçin';
+}
+
+function openDeptPrompt() {
+  document.getElementById('deptOptions').replaceChildren(...Object.entries(DEPARTMENTS).map(([key, d]) => {
+    const b = el('button', 'dept-option' + (key === department ? ' selected' : ''), d.name);
+    b.type = 'button';
+    b.addEventListener('click', () => {
+      document.getElementById('deptPrompt').hidden = true;
+      setDepartment(key);
+      maybeAskForPush();
+    });
+    return b;
+  }));
+  document.getElementById('deptPromptNo').textContent = department ? 'Vazgeç' : 'Şimdi değil';
+  document.getElementById('deptPrompt').hidden = false;
+}
+
+function setDepartment(key) {
+  if (key === department) return;
+  department = key;
+  storageSet(DEPT_KEY, key);
+  renderDeptSwitch();
+  currentFeed = 'bolum';
+  renderNews();
+  loadNews();
+  loadAnnouncements();
+  loadMessages();
+  // Bildirim aboneliği ve kullanım sayımı yeni bölümle güncellensin
+  syncPushDepartment();
+  pingInstall(true);
+}
+
+document.getElementById('deptSwitch')?.addEventListener('click', openDeptPrompt);
+document.getElementById('deptPromptNo')?.addEventListener('click', () => {
+  document.getElementById('deptPrompt').hidden = true;
+});
+renderDeptSwitch();
+
+// ── Haberler: Bölümden / Fakülteden / Üniversiteden sekmeleri ──
+const NEWS_LIMIT = 6;
+const FACULTY_SITE = 'https://turizm.adiyaman.edu.tr';
+const feedLink = feed => feed === 'uni' ? 'https://adiyaman.edu.tr/tr/duyurular'
+  : feed === 'bolum' && department ? `${FACULTY_SITE}/tr/bolumler/${DEPARTMENTS[department].slug}/duyurular`
+  : FACULTY_SITE + '/tr/duyurular';
 let newsItems = null;
-let currentFeed = storageGet(FEED_KEY) === 'uni' ? 'uni' : 'fakulte';
+// Her açılışta öğrencinin bölümüyle başlar
+let currentFeed = 'bolum';
 
 async function loadNews() {
   const list = document.getElementById('newsList');
   if (!list) return;
   try {
-    const res = await fetch('/api/news');
+    const res = await fetch('/api/news' + bolumQuery());
     if (!res.ok) throw new Error(res.status);
     newsItems = await res.json();
     renderNews();
@@ -126,7 +179,6 @@ async function loadNews() {
 
 function selectFeed(feed) {
   currentFeed = feed;
-  storageSet(FEED_KEY, feed);
   renderNews();
 }
 
@@ -138,10 +190,21 @@ function renderNews() {
     btn.setAttribute('aria-selected', String(active));
   });
   const more = document.getElementById('newsMore');
-  more.href = FEED_LINKS[currentFeed];
+  more.href = feedLink(currentFeed);
+  if (currentFeed === 'bolum' && !department) {
+    more.hidden = true;
+    const box = el('div', 'ann-empty', 'Bölümünüzün duyurularını görmek için bölümünüzü seçin.');
+    const choose = el('button', 'dept-choose', 'Bölüm seç');
+    choose.type = 'button';
+    choose.addEventListener('click', openDeptPrompt);
+    box.append(choose);
+    list.replaceChildren(box);
+    return;
+  }
   if (!newsItems) return;
 
-  const items = newsItems.filter(n => (n.feed || 'fakulte') === currentFeed);
+  const feedKey = currentFeed === 'bolum' ? department : currentFeed;
+  const items = newsItems.filter(n => (n.feed || 'fakulte') === feedKey);
   more.hidden = !items.length;
   if (!items.length) {
     list.replaceChildren(el('div', 'ann-empty', 'Henüz duyuru yok.'));
@@ -166,7 +229,7 @@ function renderNews() {
     body.append(el('div', 'news-title', n.title));
     if (n.summary) body.append(el('div', 'news-summary', n.summary));
     const by = n.source !== 'site' ? n.author || 'Turizm Fakültesi'
-      : n.feed === 'uni' ? 'Adıyaman Üniversitesi' : 'Turizm Fakültesi';
+      : n.feed === 'uni' ? 'Adıyaman Üniversitesi' : DEPARTMENTS[n.feed]?.name || 'Turizm Fakültesi';
     body.append(el('div', 'news-meta', `${by} · ${formatDate(n.published_at)}`));
     card.append(body);
     return card;
@@ -220,7 +283,7 @@ async function loadAnnouncements() {
   const list = document.getElementById('annList');
   if (!list) return;
   try {
-    const res = await fetch('/api/announcements');
+    const res = await fetch('/api/announcements' + bolumQuery());
     if (!res.ok) throw new Error(res.status);
     renderAnnouncements(await res.json());
   } catch {
@@ -303,7 +366,7 @@ async function loadMessages() {
   const list = document.getElementById('msgList');
   if (!list) return;
   try {
-    const res = await fetch('/api/messages');
+    const res = await fetch('/api/messages' + bolumQuery());
     if (!res.ok) throw new Error(res.status);
     messages = await res.json();
     renderMessages();
@@ -416,6 +479,15 @@ const postJson = data => ({
   body: JSON.stringify(data)
 });
 
+// Abonelik bölümle birlikte kaydedilir: bölüme gönderilen bildirim yalnızca o bölümü seçenlere gider
+const subscriptionData = sub => ({ ...sub.toJSON(), department });
+
+async function syncPushDepartment() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  const sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription().catch(() => null);
+  if (sub) fetch('/api/push/subscribe', postJson(subscriptionData(sub))).catch(() => {});
+}
+
 async function initPush() {
   const card = document.getElementById('pushCard');
   if (!card) return;
@@ -440,7 +512,7 @@ async function initPush() {
     sub = null;
   }
   // Sunucu aboneliği silmiş olabilir; her açılışta yeniden bildir
-  if (sub) fetch('/api/push/subscribe', postJson(sub.toJSON())).catch(() => {});
+  if (sub) fetch('/api/push/subscribe', postJson(subscriptionData(sub))).catch(() => {});
   setPushState(Notification.permission === 'denied' ? 'denied' : sub ? 'on' : 'off');
   maybeAskForPush();
 }
@@ -452,6 +524,7 @@ const PUSH_ASK_AGAIN = 7 * 86400 * 1000;
 
 function maybeAskForPush() {
   if (!isStandalone) return; // yalnızca ana ekrana kurulan uygulamada sorulur
+  if (!department) return;   // önce bölüm seçilsin; seçimden sonra yeniden çağrılır
   if (pushState !== 'off' || Notification.permission !== 'default') return;
   const asked = Number(storageGet(PUSH_ASKED_KEY) || 0);
   if (Date.now() - asked < PUSH_ASK_AGAIN) return;
@@ -500,7 +573,7 @@ async function togglePush() {
       userVisibleOnly: true,
       applicationServerKey: base64UrlToBytes(key)
     });
-    const res = await fetch('/api/push/subscribe', postJson(sub.toJSON()));
+    const res = await fetch('/api/push/subscribe', postJson(subscriptionData(sub)));
     if (!res.ok) {
       await sub.unsubscribe();
       throw new Error(res.status);
@@ -595,19 +668,20 @@ window.addEventListener('appinstalled', () => {
   showInstallBtn(false);
 });
 
-// Kurulu uygulama sayımı: cihaz rastgele bir kimlik üretir, günde en fazla bir kez "açıldım" bildirir
-function pingInstall() {
+// Kurulu uygulama sayımı: cihaz rastgele bir kimlik üretir, günde en fazla bir kez "açıldım" bildirir.
+// force: bölüm değişince aynı gün içinde de bildirilir.
+function pingInstall(force = false) {
   if (!isStandalone) return;
   try {
     const today = new Date().toISOString().slice(0, 10);
-    if (localStorage.getItem('turizm_ping') === today) return;
+    if (!force && localStorage.getItem('turizm_ping') === today) return;
     let id = localStorage.getItem('turizm_device');
     if (!id) {
       id = crypto.randomUUID();
       localStorage.setItem('turizm_device', id);
     }
     const platform = isIos ? 'ios' : isAndroid ? 'android' : 'other';
-    fetch('/api/app/ping', postJson({ id, platform }))
+    fetch('/api/app/ping', postJson({ id, platform, department }))
       .then(res => { if (res.ok) localStorage.setItem('turizm_ping', today); })
       .catch(() => {});
   } catch {
@@ -652,7 +726,8 @@ async function openInstallSheet() {
   openInstallPrompt('Yükle', true, () => installEvent && runInstall());
 }
 
-if (new URLSearchParams(location.search).has('indir')) {
+const openedFromQr = new URLSearchParams(location.search).has('indir');
+if (openedFromQr) {
   history.replaceState(null, '', '/');
   if (!isStandalone) openInstallSheet();
 }
@@ -673,6 +748,8 @@ loadAnnouncements();
 loadMessages();
 initPush();
 pingInstall();
+// Bölüm seçilmemişse sor (QR ile gelip yükleme penceresi açılırken araya girmesin)
+if (!department && !(openedFromQr && !isStandalone)) openDeptPrompt();
 
 // Bildirime tıklayınca /#duyurular ile açılır
 if (location.hash === '#duyurular') switchTab('announcements');

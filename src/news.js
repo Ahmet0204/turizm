@@ -1,13 +1,21 @@
 /* Haberler — ADYÜ sitelerinden otomatik çekme (sayfalar sunucuda HTML olarak listelenir, RSS yok).
-   İki akış var; uygulamada ayrı sekmelerde gösterilir:
+   Akışlar uygulamada ayrı sekmelerde gösterilir:
      uni     → https://adiyaman.edu.tr/tr/duyurular         (üniversitenin tüm birimlerinin duyuruları)
-     fakulte → https://turizm.adiyaman.edu.tr/tr/duyurular  (fakültenin kendi duyuruları) */
+     fakulte → https://turizm.adiyaman.edu.tr/tr/duyurular  (fakültenin kendi duyuruları)
+     <bölüm> → https://turizm.adiyaman.edu.tr/tr/bolumler/<slug>/duyurular  (her bölümün kendi duyuruları) */
+
+import { DEPARTMENTS } from './departments.js';
 
 const FACULTY_ORIGIN = 'https://turizm.adiyaman.edu.tr';
 export const FEEDS = {
   uni:     { list: 'https://adiyaman.edu.tr/tr/duyurular', accept: u => u.hostname.endsWith('adiyaman.edu.tr') },
   fakulte: { list: FACULTY_ORIGIN + '/tr/duyurular',      accept: u => u.origin === FACULTY_ORIGIN }
 };
+const departmentBase = d => `${FACULTY_ORIGIN}/tr/bolumler/${d.slug}/duyurular`;
+for (const [key, d] of Object.entries(DEPARTMENTS)) {
+  // Bölüm sayfası yan sütunda fakülte duyurularını da listeler; yalnızca bölümün kendi duyuruları alınır
+  FEEDS[key] = { list: departmentBase(d), accept: u => u.href.startsWith(departmentBase(d) + '/') };
+}
 // Kaynak listesi değişince bir sonraki istekte hemen senkron yapılır
 export const FEEDS_SIGNATURE = Object.values(FEEDS).map(f => f.list).join(' ');
 const LIST_PAGES = 2;               // her senkronda akış başına ilk 2 sayfa (~24 öğe)
@@ -123,6 +131,11 @@ export async function syncNews(env) {
   return { found: found.length, added, errors };
 }
 
-// Sekme bağlantıdan anlaşılır: fakülte sitesi ve panelden eklenenler "fakulte", diğer ADYÜ birimleri "uni"
-export const FEED_SQL =
-  `CASE WHEN source = 'site' AND url NOT LIKE '${FACULTY_ORIGIN}/%' THEN 'uni' ELSE 'fakulte' END`;
+// Sekme bağlantıdan anlaşılır: bölüm sayfalarından gelenler o bölüm, fakülte sitesinin geri kalanı "fakulte",
+// diğer ADYÜ birimleri "uni". Panelden eklenenler seçilen bölümde, bölüm seçilmediyse "fakulte"de görünür.
+// Bölüm adresleri uzun olduğundan LIKE yerine substr ile karşılaştırılır (D1 uzun LIKE kalıbını reddeder).
+export const FEED_SQL = `CASE
+    WHEN source = 'manual' THEN COALESCE(department, 'fakulte')
+    WHEN url NOT LIKE '${FACULTY_ORIGIN}/%' THEN 'uni'
+    ${Object.entries(DEPARTMENTS).map(([key, d]) => `WHEN substr(url, 1, ${departmentBase(d).length + 1}) = '${departmentBase(d)}/' THEN '${key}'`).join('\n    ')}
+    ELSE 'fakulte' END`;

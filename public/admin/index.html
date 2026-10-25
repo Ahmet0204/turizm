@@ -47,12 +47,16 @@
       <section class="card">
         <h2>Kullanım</h2>
         <div class="stats" id="usageStats"></div>
+        <p class="muted stats-note" id="usageDepts"></p>
         <p class="muted stats-note">Kurulu uygulama: ana ekrandan en az bir kez açılan cihazlar. Uygulamayı silenler toplamdan düşmez; güncel kullanımı "son 30 gün" gösterir.</p>
       </section>
 
       <section class="card" id="annCard">
         <h2 id="annFormTitle">Yeni duyuru</h2>
         <form id="annForm" class="form">
+          <label class="dept-field">Kime
+            <select name="department" class="dept-select"></select>
+          </label>
           <label>Gönderen adı <span class="muted">(uygulamada görünür; ör. Bölüm Başkanı, Prof. Dr. Ahmet Yılmaz)</span>
             <input name="sender" maxlength="80" list="senderList" autocomplete="off" placeholder="Boş bırakılırsa kendi adınız">
           </label>
@@ -77,6 +81,9 @@
       <section class="card" id="msgsCard">
         <h2 id="msgsFormTitle">Yeni mesaj</h2>
         <form id="msgsForm" class="form">
+          <label class="dept-field">Kime
+            <select name="department" class="dept-select"></select>
+          </label>
           <label>Gönderen adı <span class="muted">(uygulamada görünür; ör. Bölüm Başkanı, Prof. Dr. Ahmet Yılmaz)</span>
             <input name="sender" maxlength="80" list="senderList" autocomplete="off" placeholder="Boş bırakılırsa kendi adınız">
           </label>
@@ -102,6 +109,9 @@
         <h2>Sadece bildirim gönder</h2>
         <p class="muted">Duyurular listesine eklenmez, yalnızca bildirimi açık olanların telefonuna gider.</p>
         <form id="notifyForm" class="form">
+          <label class="dept-field">Kime
+            <select name="department" class="dept-select"></select>
+          </label>
           <label>Başlık
             <input name="title" maxlength="120" required>
           </label>
@@ -115,8 +125,11 @@
 
       <section class="card" id="newsCard">
         <h2 id="newsFormTitle">Haber ekle</h2>
-        <p class="muted">Ana sayfadaki iki sekme saatte bir fakülte sitesinden otomatik dolar: <b>Üniversiteden</b> (adiyaman.edu.tr duyuruları) ve <b>Fakülteden</b> (turizm.adiyaman.edu.tr duyuruları). Buradan eklediğiniz haberler Fakülteden sekmesinde görünür.</p>
+        <p class="muted">Ana sayfadaki üç sekme saatte bir sitelerden otomatik dolar: <b>Bölümden</b> (bölüm sayfasındaki duyurular), <b>Fakülteden</b> (turizm.adiyaman.edu.tr duyuruları) ve <b>Üniversiteden</b> (adiyaman.edu.tr duyuruları). Buradan eklediğiniz haberler seçtiğiniz bölümün sekmesinde, fakülte geneli seçilirse Fakülteden sekmesinde görünür.</p>
         <form id="newsForm" class="form">
+          <label class="dept-field">Kime
+            <select name="department" class="dept-select"></select>
+          </label>
           <label>Gönderen adı <span class="muted">(uygulamada görünür; ör. Bölüm Başkanı, Prof. Dr. Ahmet Yılmaz)</span>
             <input name="sender" maxlength="80" list="senderList" autocomplete="off" placeholder="Boş bırakılırsa kendi adınız">
           </label>
@@ -162,9 +175,12 @@
           </label>
           <label>Yetki
             <select name="role">
-              <option value="admin">Yönetici — duyuru ve bildirim</option>
-              <option value="super">Süper yönetici — ayrıca yönetici ekler/siler</option>
+              <option value="admin">Bölüm yöneticisi — yalnızca kendi bölümüne duyuru ve bildirim</option>
+              <option value="super">Süper yönetici — tüm fakülteye gönderir, yönetici ekler/siler</option>
             </select>
+          </label>
+          <label id="adminDeptRow">Bölüm
+            <select name="department" id="adminDeptSelect"></select>
           </label>
           <button class="btn" type="submit">Ekle</button>
           <p class="msg" role="status"></p>

@@ -95,13 +95,54 @@ async function showPanel(admin) {
   $('#logoutBtn').hidden = false;
   $('#whoami').textContent = `${admin.name} · ${admin.role === 'super' ? 'Süper yönetici' : 'Yönetici'}`;
   $('#adminsCard').hidden = admin.role !== 'super';
-  await Promise.all([refreshMe(), loadPosts('announcements'), loadPosts('messages'), loadNews(), loadSenders(),
+  // Listeler bölüm adlarını kullandığı için önce bölüm bilgisi gelsin
+  await refreshMe();
+  if (admin.role !== 'super') $('#whoami').textContent = `${admin.name} · ${deptName(admin.department)} yöneticisi`;
+  await Promise.all([loadPosts('announcements'), loadPosts('messages'), loadNews(), loadSenders(),
     admin.role === 'super' ? loadAdmins() : null]);
 }
 
+// ── Bölümler ──────────────────────────────────
+// Süper yönetici hedefi seçer (boş = fakülte geneli); bölüm yöneticisinin hedefi kendi bölümüdür
+let departments = {};
+let subscribers = { total: 0, byDepartment: {} };
+const deptName = key => key ? departments[key] || key : 'Fakülte geneli';
+
+function option(value, label) {
+  const o = el('option', null, label);
+  o.value = value;
+  return o;
+}
+
+function fillDepartmentSelects() {
+  const super_ = me.role === 'super';
+  document.querySelectorAll('.dept-select').forEach(sel => {
+    const keep = sel.value;
+    sel.replaceChildren(...(super_
+      ? [option('', 'Fakülte geneli (tüm öğrenciler)'), ...Object.entries(departments).map(([k, n]) => option(k, n))]
+      : [option(me.department || '', me.department ? deptName(me.department) : 'Hesabınıza bölüm atanmamış')]));
+    if (super_) sel.value = keep;
+    sel.disabled = !super_;
+  });
+  $('#adminDeptSelect').replaceChildren(...Object.entries(departments).map(([k, n]) => option(k, n)));
+  updateSubCounts();
+}
+
+// "Bildirim olarak da gönder (N abone)": seçilen hedefe göre
+function updateSubCounts() {
+  document.querySelectorAll('.sub-count').forEach(n => {
+    const d = n.closest('form').department.value;
+    n.textContent = `(${d ? subscribers.byDepartment[d] || 0 : subscribers.total} abone)`;
+  });
+}
+
+document.querySelectorAll('.dept-select').forEach(sel => sel.addEventListener('change', updateSubCounts));
+
 async function refreshMe() {
   const data = await api('/api/admin/me');
-  document.querySelectorAll('.sub-count').forEach(n => { n.textContent = `(${data.subscribers} abone)`; });
+  departments = data.departments || {};
+  subscribers = { total: data.subscribers, byDepartment: data.subscribersByDepartment || {} };
+  fillDepartmentSelects();
   const d = data.devices;
   const stat = (num, label) => {
     const box = el('div', 'stat');
@@ -112,6 +153,12 @@ async function refreshMe() {
     ? [stat(d.total, `Kurulu uygulama (iPhone ${d.ios}, Android ${d.android})`), stat(d.active30, 'Son 30 günde açan'),
        stat(d.active7, 'Son 7 günde açan'), stat(data.subscribers, 'Bildirimi açık')]
     : [stat(data.subscribers, 'Bildirimi açık')]));
+  // Bölümlere göre kurulu uygulama sayısı
+  const byDept = d?.byDepartment || {};
+  $('#usageDepts').textContent = d
+    ? 'Bölümlere göre kurulu uygulama: ' + [...Object.keys(departments).map(k => `${departments[k]} ${byDept[k] || 0}`),
+        `Bölüm seçmemiş ${byDept[''] || 0}`].join(' · ')
+    : '';
 }
 
 function pushStat(a) {
@@ -138,7 +185,9 @@ async function loadPosts(kind) {
   list.replaceChildren(...items.map(a => {
     const li = el('li');
     const main = el('div', 'item-main');
-    main.append(el('div', 'item-title', a.title), el('div', 'item-meta', `${a.author} · ${formatDate(a.created_at)}${pushStat(a)}`));
+    const title = el('div', 'item-title', a.title);
+    if (me.role === 'super') title.append(el('span', 'role' + (a.department ? '' : ' muted-role'), deptName(a.department)));
+    main.append(title, el('div', 'item-meta', `${a.author} · ${formatDate(a.created_at)}${pushStat(a)}`));
     main.append(linkify(el('div', 'item-body'), a.body));
     const edit = el('button', 'edit-btn', 'Düzenle');
     edit.type = 'button';
@@ -169,6 +218,7 @@ function startPostEdit(kind, a) {
   const k = POSTS[kind];
   const form = postForm(kind);
   editing[kind] = a.id;
+  if (me.role === 'super') form.department.value = a.department || '';
   form.sender.value = a.author;
   form.title.value = a.title;
   form.body.value = a.body;
@@ -191,6 +241,7 @@ function stopPostEdit(kind) {
   $(`#${k.p}Submit`).textContent = k.submit;
   $(`#${k.p}NotifyRow`).hidden = false;
   $(`#${k.p}Cancel`).hidden = true;
+  updateSubCounts();
 }
 
 for (const kind of Object.keys(POSTS)) {
@@ -200,7 +251,7 @@ for (const kind of Object.keys(POSTS)) {
   });
 
   handleForm(postForm(kind), async data => {
-    const body = { sender: data.sender, title: data.title, body: data.body };
+    const body = { department: data.department, sender: data.sender, title: data.title, body: data.body };
     if (editing[kind]) {
       await api(`/api/admin/${kind}/${editing[kind]}`, { method: 'PUT', body });
       stopPostEdit(kind);
@@ -231,7 +282,7 @@ async function loadAdmins() {
     const main = el('div', 'item-main');
     const title = el('div', 'item-title', a.name);
     if (a.role === 'super') title.append(el('span', 'role', 'Süper'));
-    main.append(title, el('div', 'item-meta', a.email));
+    main.append(title, el('div', 'item-meta', a.role === 'super' ? a.email : `${a.email} · ${deptName(a.department)}`));
     li.append(main);
     if (a.id !== me.id) {
       const del = el('button', 'del-btn', 'Yetkiyi kaldır');
@@ -268,7 +319,8 @@ async function loadNews() {
     const li = el('li', n.hidden ? 'is-hidden' : '');
     const main = el('div', 'item-main');
     const title = el('div', 'item-title', n.title);
-    title.append(el('span', 'role', n.source === 'site' ? (n.feed === 'uni' ? 'Üniversite' : 'Fakülte') : 'Panel'));
+    title.append(el('span', 'role', n.feed === 'uni' ? 'Üniversite' : departments[n.feed] || 'Fakülte'));
+    if (n.source !== 'site') title.append(el('span', 'role muted-role', 'Panel'));
     if (n.hidden) title.append(el('span', 'role muted-role', 'Gizli'));
     main.append(title, el('div', 'item-meta', `${n.source === 'site' ? 'Fakülte sitesi' : n.author} · ${formatDate(n.published_at)}`));
 
@@ -310,6 +362,9 @@ async function loadNews() {
 function startNewsEdit(n) {
   const form = $('#newsForm');
   editingNewsId = n.id;
+  // Siteden gelen haberin sekmesi bağlantısından belirlenir, değiştirilemez
+  form.department.value = departments[n.feed] ? n.feed : '';
+  form.department.disabled = me.role !== 'super' || n.source === 'site';
   form.sender.value = n.source === 'site' ? '' : n.author || '';
   form.sender.disabled = n.source === 'site';
   form.title.value = n.title;
@@ -330,6 +385,7 @@ function stopNewsEdit() {
   $('#newsForm').reset();
   $('#newsForm').url.disabled = false;
   $('#newsForm').sender.disabled = false;
+  $('#newsForm').department.disabled = me.role !== 'super';
   $('#newsFormTitle').textContent = 'Haber ekle';
   $('#newsSubmit').textContent = 'Ekle';
   $('#newsCancel').hidden = true;
@@ -386,11 +442,16 @@ handleForm($('#notifyForm'), async (data, form) => {
   return pushSummary(res);
 });
 
+// Süper yöneticinin bölümü olmaz
+const toggleAdminDept = () => { $('#adminDeptRow').hidden = $('#adminForm').role.value === 'super'; };
+$('#adminForm').role.addEventListener('change', toggleAdminDept);
+
 handleForm($('#adminForm'), async (data, form) => {
   await api('/api/admin/admins', { body: data });
   form.reset();
+  toggleAdminDept();
   await loadAdmins();
-  return `${data.name} yönetici olarak eklendi. Giriş adresi: ${location.origin}/admin/`;
+  return `${data.name} ${data.role === 'super' ? 'süper yönetici' : deptName(data.department) + ' yöneticisi'} olarak eklendi. Giriş adresi: ${location.origin}/admin/`;
 });
 
 handleForm($('#passwordForm'), async (data, form) => {

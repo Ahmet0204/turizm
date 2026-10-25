@@ -4,6 +4,7 @@
 import { hashPassword, verifyPassword, createSession, readSession, SESSION_SECONDS } from './auth.js';
 import { broadcast, isPushEndpoint } from './push.js';
 import { syncNews, SYNC_EVERY, FEED_SQL, FEEDS_SIGNATURE } from './news.js';
+import { DEPARTMENTS, isDepartment } from './departments.js';
 
 const COOKIE = 'turizm_sid';
 const MAX_LOGIN_FAILS = 5;
@@ -148,7 +149,31 @@ function senderName(value, admin) {
   return optionalText(value, 80, 'Gönderen adı') || admin.name;
 }
 
-const publicAdmin = a => ({ id: a.id, email: a.email, name: a.name, role: a.role });
+const publicAdmin = a => ({ id: a.id, email: a.email, name: a.name, role: a.role, department: a.department || null });
+
+// Öğrencinin seçtiği bölüm (?bolum=); geçersizse ya da yoksa yalnızca fakülte geneli
+const studentDepartment = url => {
+  const d = url.searchParams.get('bolum');
+  return isDepartment(d) ? d : null;
+};
+
+// Gönderinin hedef bölümü: süper yönetici seçer (boş = fakülte geneli), diğerleri yalnızca kendi bölümüne
+function targetDepartment(value, admin) {
+  if (admin.role !== 'super') {
+    if (!admin.department) throw new HttpError(403, 'Hesabınıza bölüm atanmamış; süper yöneticiye başvurun');
+    return admin.department;
+  }
+  if (value == null || value === '') return null;
+  if (!isDepartment(value)) throw new HttpError(400, 'Geçersiz bölüm');
+  return value;
+}
+
+// Bölüm yöneticisi yalnızca kendi bölümündeki kayda dokunabilir
+function assertOwnDepartment(admin, department) {
+  if (admin.role !== 'super' && department !== admin.department) {
+    throw new HttpError(403, 'Bu kayıt başka bir bölüme ait');
+  }
+}
 
 async function currentAdmin(request, env) {
   const token = (request.headers.get('Cookie') || '')
@@ -176,12 +201,13 @@ async function route(request, env, url, ctx) {
     if (!sameOrigin) throw new HttpError(403, 'İzin verilmeyen kaynak');
   }
 
-  // Herkese açık
+  // Herkese açık: fakülte geneli + öğrencinin bölümüne gönderilenler
   const publicPosts = path.match(/^\/api\/(announcements|messages)$/);
   if (publicPosts && method === 'GET') {
     const { results } = await env.DB.prepare(
-      `SELECT id, title, body, author, created_at FROM ${POSTS[publicPosts[1]].table} ORDER BY id DESC LIMIT 50`
-    ).all().catch(missingTable);
+      `SELECT id, title, body, author, department, created_at FROM ${POSTS[publicPosts[1]].table}
+       WHERE department IS NULL OR department = ? ORDER BY id DESC LIMIT 50`
+    ).bind(studentDepartment(url)).all().catch(missingTable);
     return json(results);
   }
 
@@ -196,14 +222,14 @@ async function route(request, env, url, ctx) {
     if (!last || Date.now() / 1000 - Number(last.value) > SYNC_EVERY || feeds?.value !== FEEDS_SIGNATURE) {
       ctx.waitUntil(syncNews(env).catch(err => console.error('Haber senkronu', err)));
     }
-    // Her sekme için en yeni 30 öğe
+    // Her sekme için en yeni 30 öğe: üniversite, fakülte ve öğrencinin bölümü
     const { results } = await env.DB.prepare(
       `SELECT id, source, feed, url, title, summary, image, author, published_at FROM (
          SELECT *, ${FEED_SQL} AS feed,
                 ROW_NUMBER() OVER (PARTITION BY ${FEED_SQL} ORDER BY published_at DESC, id ASC) AS n
          FROM news WHERE hidden = 0
-       ) WHERE n <= 30 ORDER BY published_at DESC, id ASC`
-    ).all();
+       ) WHERE n <= 30 AND feed IN ('uni', 'fakulte', ?) ORDER BY published_at DESC, id ASC`
+    ).bind(studentDepartment(url)).all();
     return json(results);
   }
 
@@ -216,15 +242,15 @@ async function route(request, env, url, ctx) {
       throw new HttpError(429, 'Çok fazla istek. Birazdan tekrar deneyin.');
     }
     await rateBump(env, 'sub:' + subIp, SUBSCRIBE_WINDOW, subNow);
-    const { endpoint, keys } = await readJson(request);
+    const { endpoint, keys, department } = await readJson(request);
     const valid = isPushEndpoint(endpoint) && endpoint.length <= 1000 &&
       typeof keys?.p256dh === 'string' && keys.p256dh.length <= 200 &&
       typeof keys?.auth === 'string' && keys.auth.length <= 100;
     if (!valid) throw new HttpError(400, 'Geçersiz abonelik');
     await env.DB.prepare(
-      `INSERT INTO subscriptions (endpoint, p256dh, auth) VALUES (?, ?, ?)
-       ON CONFLICT(endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth`
-    ).bind(endpoint, keys.p256dh, keys.auth).run();
+      `INSERT INTO subscriptions (endpoint, p256dh, auth, department) VALUES (?, ?, ?, ?)
+       ON CONFLICT(endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth, department = excluded.department`
+    ).bind(endpoint, keys.p256dh, keys.auth, isDepartment(department) ? department : null).run();
     return json({ ok: true });
   }
 
@@ -236,14 +262,15 @@ async function route(request, env, url, ctx) {
       throw new HttpError(429, 'Çok fazla istek. Birazdan tekrar deneyin.');
     }
     await rateBump(env, 'ping:' + pingIp, PING_WINDOW, now);
-    const { id, platform } = await readJson(request);
+    const { id, platform, department } = await readJson(request);
     if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/.test(id) || !['ios', 'android', 'other'].includes(platform)) {
       throw new HttpError(400, 'Geçersiz istek');
     }
     await env.DB.prepare(
-      `INSERT INTO devices (id, platform, first_seen, last_seen) VALUES (?1, ?2, ?3, ?3)
-       ON CONFLICT(id) DO UPDATE SET last_seen = excluded.last_seen, platform = excluded.platform`
-    ).bind(id, platform, now).run().catch(missingStats);
+      `INSERT INTO devices (id, platform, department, first_seen, last_seen) VALUES (?1, ?2, ?4, ?3, ?3)
+       ON CONFLICT(id) DO UPDATE SET last_seen = excluded.last_seen, platform = excluded.platform,
+         department = excluded.department`
+    ).bind(id, platform, now, isDepartment(department) ? department : null).run().catch(missingStats);
     return json({ ok: true });
   }
 
@@ -280,7 +307,20 @@ async function route(request, env, url, ctx) {
               COALESCE(SUM(platform = 'android'), 0) AS android
        FROM devices`
     ).bind(now - 7 * DAY, now - 30 * DAY).first().catch(missingStats);
-    return json({ ...publicAdmin(admin), subscribers: n, devices });
+    // Bölüm başına abone ve kurulu cihaz sayısı (anahtar '' = bölüm seçmemiş)
+    const byDepartment = async table => {
+      const { results } = await env.DB.prepare(
+        `SELECT COALESCE(department, '') AS d, COUNT(*) AS n FROM ${table} GROUP BY department`
+      ).all();
+      return Object.fromEntries(results.map(r => [r.d, r.n]));
+    };
+    return json({
+      ...publicAdmin(admin),
+      departments: Object.fromEntries(Object.entries(DEPARTMENTS).map(([key, d]) => [key, d.name])),
+      subscribers: n,
+      subscribersByDepartment: await byDepartment('subscriptions'),
+      devices: devices && { ...devices, byDepartment: await byDepartment('devices') }
+    });
   }
 
   // Duyurular ve mesajlar: aynı yapı, farklı tablo. Gönderen adını yönetici seçer.
@@ -301,11 +341,11 @@ async function route(request, env, url, ctx) {
     const kind = POSTS[postMatch[1]];
     const id = postMatch[2] ? Number(postMatch[2]) : null;
 
-    // Panel listesi: herkese açık listeye ek olarak bildirim sayılarını da içerir
+    // Panel listesi: bildirim sayılarını da içerir. Bölüm yöneticisi yalnızca kendi bölümününkileri görür.
     if (!id && method === 'GET') {
       const { results } = await env.DB.prepare(
-        `SELECT * FROM ${kind.table} ORDER BY id DESC LIMIT 50`
-      ).all().catch(missingTable);
+        `SELECT * FROM ${kind.table} WHERE ?1 IS NULL OR department = ?1 ORDER BY id DESC LIMIT 50`
+      ).bind(admin.role === 'super' ? null : admin.department || '').all().catch(missingTable);
       return json(results);
     }
 
@@ -318,11 +358,12 @@ async function route(request, env, url, ctx) {
       const title = text(data.title, 120, 'Başlık');
       const body = text(data.body, 2000, 'Metin');
       const author = senderName(data.sender, admin);
+      const department = targetDepartment(data.department, admin);
       const row = await env.DB.prepare(
-        `INSERT INTO ${kind.table} (title, body, author) VALUES (?, ?, ?) RETURNING id`
-      ).bind(title, body, author).first();
+        `INSERT INTO ${kind.table} (title, body, author, department) VALUES (?, ?, ?, ?) RETURNING id`
+      ).bind(title, body, author, department).first();
       const push = data.notify
-        ? await broadcast(env, { title: kind.pushTitle(author, title), body: body.slice(0, 180), url: kind.url })
+        ? await broadcast(env, { title: kind.pushTitle(author, title), body: body.slice(0, 180), url: kind.url }, department)
         : null;
       if (push) {
         await env.DB.prepare(`UPDATE ${kind.table} SET push_sent = ?, push_total = ? WHERE id = ?`)
@@ -331,12 +372,20 @@ async function route(request, env, url, ctx) {
       return json({ id: row.id, push }, 201);
     }
 
+    if (id) {
+      const existing = await env.DB.prepare(`SELECT department FROM ${kind.table} WHERE id = ?`).bind(id).first();
+      if (!existing) throw new HttpError(404, `${kind.label} bulunamadı`);
+      assertOwnDepartment(admin, existing.department);
+    }
+
     if (id && method === 'PUT') {
       const data = await readJson(request);
-      const row = await env.DB.prepare(
-        `UPDATE ${kind.table} SET title = ?, body = ?, author = ? WHERE id = ? RETURNING id`
-      ).bind(text(data.title, 120, 'Başlık'), text(data.body, 2000, 'Metin'), senderName(data.sender, admin), id).first();
-      if (!row) throw new HttpError(404, `${kind.label} bulunamadı`);
+      await env.DB.prepare(
+        `UPDATE ${kind.table} SET title = ?, body = ?, author = ?, department = ? WHERE id = ?`
+      ).bind(
+        text(data.title, 120, 'Başlık'), text(data.body, 2000, 'Metin'), senderName(data.sender, admin),
+        targetDepartment(data.department, admin), id
+      ).run();
       return json({ ok: true });
     }
 
@@ -349,9 +398,10 @@ async function route(request, env, url, ctx) {
   // Haberler: panelden ekleme, düzenleme, gizleme; siteden elle senkron
   if (path === '/api/admin/news' && method === 'GET') {
     const { results } = await env.DB.prepare(
-      `SELECT id, source, ${FEED_SQL} AS feed, url, title, summary, image, author, published_at, hidden FROM news
-       ORDER BY published_at DESC, id ASC LIMIT 150`
-    ).all();
+      `SELECT * FROM (
+         SELECT id, source, ${FEED_SQL} AS feed, url, title, summary, image, author, published_at, hidden FROM news
+       ) WHERE ?1 IS NULL OR feed = ?1 ORDER BY published_at DESC, id ASC LIMIT 200`
+    ).bind(admin.role === 'super' ? null : admin.department || '').all();
     const last = await env.DB.prepare("SELECT value FROM meta WHERE key = 'news_synced_at'").first();
     return json({ items: results, synced_at: last ? Number(last.value) : null });
   }
@@ -359,11 +409,12 @@ async function route(request, env, url, ctx) {
   if (path === '/api/admin/news' && method === 'POST') {
     const data = await readJson(request);
     const row = await env.DB.prepare(
-      `INSERT INTO news (source, url, title, summary, image, author, published_at)
-       VALUES ('manual', ?, ?, ?, ?, ?, unixepoch()) RETURNING id`
+      `INSERT INTO news (source, url, title, summary, image, author, department, published_at)
+       VALUES ('manual', ?, ?, ?, ?, ?, ?, unixepoch()) RETURNING id`
     ).bind(
       optionalUrl(data.url, 'Bağlantı'), text(data.title, 200, 'Başlık'),
-      optionalText(data.summary, 600, 'Özet'), optionalUrl(data.image, 'Görsel'), senderName(data.sender, admin)
+      optionalText(data.summary, 600, 'Özet'), optionalUrl(data.image, 'Görsel'), senderName(data.sender, admin),
+      targetDepartment(data.department, admin)
     ).first().catch(err => {
       if (String(err).includes('UNIQUE')) throw new HttpError(409, 'Bu bağlantıyla bir haber zaten var');
       throw err;
@@ -383,8 +434,9 @@ async function route(request, env, url, ctx) {
   const newsMatch = path.match(/^\/api\/admin\/news\/(\d+)$/);
   if (newsMatch) {
     const id = Number(newsMatch[1]);
-    const item = await env.DB.prepare('SELECT source FROM news WHERE id = ?').bind(id).first();
+    const item = await env.DB.prepare(`SELECT source, ${FEED_SQL} AS feed FROM news WHERE id = ?`).bind(id).first();
     if (!item) throw new HttpError(404, 'Haber bulunamadı');
+    assertOwnDepartment(admin, item.feed);
 
     if (method === 'PUT') {
       const data = await readJson(request);
@@ -396,11 +448,13 @@ async function route(request, env, url, ctx) {
       await env.DB.prepare(
         `UPDATE news SET title = ?1, summary = ?2, image = ?3,
            url = CASE WHEN source = 'site' THEN url ELSE ?4 END,
-           author = CASE WHEN source = 'site' THEN author ELSE ?5 END
+           author = CASE WHEN source = 'site' THEN author ELSE ?5 END,
+           department = CASE WHEN source = 'site' THEN department ELSE ?7 END
          WHERE id = ?6`
       ).bind(
         text(data.title, 200, 'Başlık'), optionalText(data.summary, 600, 'Özet'), optionalUrl(data.image, 'Görsel'),
-        item.source === 'site' ? null : optionalUrl(data.url, 'Bağlantı'), senderName(data.sender, admin), id
+        item.source === 'site' ? null : optionalUrl(data.url, 'Bağlantı'), senderName(data.sender, admin), id,
+        item.source === 'site' ? null : targetDepartment(data.department, admin)
       ).run().catch(err => {
         if (String(err).includes('UNIQUE')) throw new HttpError(409, 'Bu bağlantıyla bir haber zaten var');
         throw err;
@@ -422,7 +476,7 @@ async function route(request, env, url, ctx) {
       title: text(data.title, 120, 'Başlık'),
       body: text(data.body, 300, 'Metin'),
       url: '/'
-    }));
+    }, targetDepartment(data.department, admin)));
   }
 
   if (path === '/api/admin/password' && method === 'POST') {
@@ -442,7 +496,7 @@ async function route(request, env, url, ctx) {
 
     if (path === '/api/admin/admins' && method === 'GET') {
       const { results } = await env.DB.prepare(
-        'SELECT id, email, name, role, created_at FROM admins ORDER BY id'
+        'SELECT id, email, name, role, department, created_at FROM admins ORDER BY id'
       ).all();
       return json(results);
     }
@@ -453,11 +507,14 @@ async function route(request, env, url, ctx) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpError(400, 'Geçersiz e-posta');
       const name = text(data.name, 80, 'Ad');
       const role = data.role === 'super' ? 'super' : 'admin';
+      // Süper yönetici tüm fakülteye yazar; diğer yöneticiler tek bir bölüme bağlıdır
+      const department = role === 'super' ? null : data.department;
+      if (role !== 'super' && !isDepartment(department)) throw new HttpError(400, 'Yöneticinin bölümünü seçin');
       const { hash, salt } = await hashPassword(newPassword(data.password));
       try {
         await env.DB.prepare(
-          'INSERT INTO admins (email, name, role, pass_hash, salt) VALUES (?, ?, ?, ?, ?)'
-        ).bind(email, name, role, hash, salt).run();
+          'INSERT INTO admins (email, name, role, department, pass_hash, salt) VALUES (?, ?, ?, ?, ?, ?)'
+        ).bind(email, name, role, department, hash, salt).run();
       } catch (err) {
         if (String(err).includes('UNIQUE')) throw new HttpError(409, 'Bu e-posta zaten kayıtlı');
         throw err;

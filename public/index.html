@@ -51,11 +51,15 @@
     <section class="tab-panel active" id="tab-home">
       <div class="scroll-content">
 
-        <!-- Fakülte sitesinden: haberler (üniversite) ve duyurular (fakülte) -->
-        <div class="section-label">Duyurular</div>
+        <!-- Sitelerden otomatik çekilen duyurular: öğrencinin bölümü, fakülte, üniversite -->
+        <div class="section-head">
+          <div class="section-label">Duyurular</div>
+          <button class="dept-switch" id="deptSwitch" type="button">Bölüm seçin</button>
+        </div>
         <div class="seg" role="tablist" aria-label="Duyuru kaynağı">
+          <button class="seg-btn" type="button" role="tab" id="feedTab-bolum" data-feed="bolum" aria-selected="true" aria-controls="newsList">Bölümden</button>
+          <button class="seg-btn" type="button" role="tab" id="feedTab-fakulte" data-feed="fakulte" aria-selected="false" aria-controls="newsList">Fakülteden</button>
           <button class="seg-btn" type="button" role="tab" id="feedTab-uni" data-feed="uni" aria-selected="false" aria-controls="newsList">Üniversiteden</button>
-          <button class="seg-btn" type="button" role="tab" id="feedTab-fakulte" data-feed="fakulte" aria-selected="true" aria-controls="newsList">Fakülteden</button>
         </div>
         <div class="news-list" id="newsList" role="tabpanel">
           <div class="ann-empty">Duyurular yükleniyor…</div>
@@ -178,6 +182,17 @@
       <p class="prompt-text">Fakülteden yeni duyuru ve mesaj geldiğinde telefonunuza bildirim gelsin. İstediğiniz zaman Duyurular sekmesinden kapatabilirsiniz.</p>
       <button class="prompt-yes" id="pushPromptYes" type="button">Bildirimleri Aç</button>
       <button class="prompt-no" id="pushPromptNo" type="button">Şimdi değil</button>
+    </div>
+  </div>
+
+  <!-- Bölüm seçimi (ilk açılışta ve ana sayfadan değiştirirken) -->
+  <div class="prompt-backdrop" id="deptPrompt" hidden>
+    <div class="prompt" role="dialog" aria-modal="true" aria-labelledby="deptPromptTitle">
+      <img class="prompt-logo" src="/img/logo.png" alt="" width="64" height="64">
+      <h2 class="prompt-title" id="deptPromptTitle">Bölümünüzü seçin</h2>
+      <p class="prompt-text">Bölümünüzün duyurularını görür, bölümünüze gönderilen mesaj ve bildirimleri alırsınız. Daha sonra ana sayfadan değiştirebilirsiniz.</p>
+      <div class="dept-options" id="deptOptions"></div>
+      <button class="prompt-no" id="deptPromptNo" type="button">Şimdi değil</button>
     </div>
   </div>
 

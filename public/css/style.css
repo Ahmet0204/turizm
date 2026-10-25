@@ -419,6 +419,61 @@ a.news-card:active { transform: scale(0.99); }
   overflow: hidden;
 }
 
+/* Duyurular başlığı + bölüm değiştirme */
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dept-switch {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary-ink);
+  background: var(--primary-dim);
+  border: none;
+  border-radius: 20px;
+  padding: 5px 12px;
+  margin-top: 4px;
+  max-width: 60%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.dept-choose {
+  display: block;
+  margin: 12px auto 0;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--primary);
+  border: none;
+  border-radius: 10px;
+  padding: 10px 20px;
+  cursor: pointer;
+}
+
+.dept-options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
+
+.dept-option {
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-1);
+  background: var(--surface-2);
+  border: 2px solid transparent;
+  border-radius: 12px;
+  padding: 13px;
+  cursor: pointer;
+}
+
+.dept-option.selected { border-color: var(--primary-ink); color: var(--primary-ink); }
+
 .news-more {
   display: block;
   text-align: center;

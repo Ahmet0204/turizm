@@ -95,9 +95,12 @@ async function sendOne(env, sub, message) {
   return res.status;
 }
 
-// Tüm abonelere gönderir; süresi dolan abonelikleri (404/410) siler
-export async function broadcast(env, message) {
-  const { results } = await env.DB.prepare('SELECT endpoint, p256dh, auth FROM subscriptions').all();
+// Abonelere gönderir (department verilirse yalnızca o bölümü seçenlere); süresi dolan abonelikleri (404/410) siler
+export async function broadcast(env, message, department = null) {
+  const { results } = await (department
+    ? env.DB.prepare('SELECT endpoint, p256dh, auth FROM subscriptions WHERE department = ?').bind(department)
+    : env.DB.prepare('SELECT endpoint, p256dh, auth FROM subscriptions')
+  ).all();
   const gone = [];
   let sent = 0;
 
