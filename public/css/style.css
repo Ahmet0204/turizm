@@ -747,6 +747,13 @@ a.news-card:active { transform: scale(0.99); }
   overflow-wrap: anywhere;
 }
 
+/* Duyuru ve mesaj metnindeki bağlantılar */
+.text-link {
+  color: var(--primary-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .ann-empty {
   text-align: center;
   font-size: 13px;

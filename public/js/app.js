@@ -197,6 +197,25 @@ function el(tag, className, text) {
   return node;
 }
 
+// Metindeki http(s):// ve www. adreslerini tıklanabilir bağlantıya çevirir (HTML yorumlanmaz)
+const URL_RE = /\b(?:https?:\/\/|www\.)[^\s<>"]+/gi;
+function linkify(node, text) {
+  let last = 0;
+  for (const m of text.matchAll(URL_RE)) {
+    // Cümle sonundaki noktalama bağlantıya dahil olmasın
+    const url = m[0].replace(/[.,;:!?)\]'"»]+$/, '');
+    node.append(text.slice(last, m.index));
+    const a = el('a', 'text-link', url);
+    a.href = /^www\./i.test(url) ? 'https://' + url : url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    node.append(a);
+    last = m.index + url.length;
+  }
+  node.append(text.slice(last));
+  return node;
+}
+
 async function loadAnnouncements() {
   const list = document.getElementById('annList');
   if (!list) return;
@@ -225,7 +244,7 @@ function renderAnnouncements(items) {
     const content = el('div', 'ann-content');
     const meta = el('div', 'ann-meta');
     meta.append(el('span', 'ann-author', a.author), el('span', 'ann-date', formatDate(a.created_at)));
-    content.append(el('div', 'ann-title', a.title), el('div', 'ann-body', a.body), meta);
+    content.append(el('div', 'ann-title', a.title), linkify(el('div', 'ann-body'), a.body), meta);
     item.append(el('div', 'ann-dot' + (unread ? '' : ' read')), content);
     return item;
   }));
@@ -337,7 +356,9 @@ function openMessage(m) {
   document.getElementById('msgSheetDate').textContent =
     new Date(m.created_at * 1000).toLocaleString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   document.getElementById('msgSheetTitle').textContent = m.title;
-  document.getElementById('msgSheetText').textContent = m.body;
+  const msgText = document.getElementById('msgSheetText');
+  msgText.replaceChildren();
+  linkify(msgText, m.body);
   const sheet = document.getElementById('msgSheet');
   sheet.hidden = false;
   sheet.querySelector('.msg-sheet-body').scrollTop = 0;
