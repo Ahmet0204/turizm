@@ -46,6 +46,11 @@ function updateHeader(tabId) {
 
   if (titleEl) titleEl.textContent = titles[tabId] || 'Turizm Fakültesi';
   if (subtitleEl) subtitleEl.textContent = subtitles[tabId] || homeSubtitle();
+  // Ana sayfada başlığa dokununca bölüm değiştirilir
+  const home = tabId === 'home';
+  document.getElementById('headerLogo')?.classList.toggle('dept-pick', home);
+  const caret = document.getElementById('headerCaret');
+  caret?.toggleAttribute('hidden', !home); // SVG'de .hidden özelliği yok
 }
 
 // ── Tarih ─────────────────────────────────────
@@ -53,10 +58,11 @@ const DAYS = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 
 const MONTHS = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran',
                 'Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
 
-// Ana sayfa başlığının alt satırı: "Öğrenci Portalı · 17 Ekim Cumartesi"
+// Ana sayfa başlığının alt satırı: "Turizm Rehberliği · 17 Ekim Cumartesi" (bölüm seçilmediyse "Bölüm seçin")
 function homeSubtitle() {
   const now = new Date();
-  return `Öğrenci Portalı · ${now.getDate()} ${MONTHS[now.getMonth()]} ${DAYS[now.getDay()]}`;
+  const dept = department ? DEPARTMENTS[department].name : 'Bölüm seçin';
+  return `${dept} · ${now.getDate()} ${MONTHS[now.getMonth()]} ${DAYS[now.getDay()]}`;
 }
 
 function updateDate() {
@@ -113,9 +119,9 @@ const DEPT_KEY = 'turizm:bolum';
 let department = Object.hasOwn(DEPARTMENTS, storageGet(DEPT_KEY) || '') ? storageGet(DEPT_KEY) : null;
 const bolumQuery = () => department ? '?bolum=' + department : '';
 
+// Seçili bölüm başlığın alt satırında görünür
 function renderDeptSwitch() {
-  const btn = document.getElementById('deptSwitch');
-  if (btn) btn.textContent = department ? DEPARTMENTS[department].name : 'Bölüm seçin';
+  updateDate();
 }
 
 function openDeptPrompt() {
@@ -148,7 +154,9 @@ function setDepartment(key) {
   pingInstall(true);
 }
 
-document.getElementById('deptSwitch')?.addEventListener('click', openDeptPrompt);
+document.getElementById('headerLogo')?.addEventListener('click', () => {
+  if (document.getElementById('tab-home')?.classList.contains('active')) openDeptPrompt();
+});
 document.getElementById('deptPromptNo')?.addEventListener('click', () => {
   document.getElementById('deptPrompt').hidden = true;
 });
@@ -466,7 +474,18 @@ function setPushState(state) {
   btn.textContent = s.btn || '';
   btn.disabled = !!s.disabled;
   btn.classList.toggle('secondary', !!s.secondary);
+  updatePushHeadBtn();
 }
+
+// Başlıktaki "Bildirimleri Aç": bildirimler kapalıyken görünür; tarayıcıda önce "İndir" düğmesi yer alır
+function updatePushHeadBtn() {
+  const head = document.getElementById('pushHeadBtn');
+  if (!head) return;
+  const installShown = !document.getElementById('installBtn')?.hidden;
+  head.hidden = installShown || (pushState !== 'off' && pushState !== 'error');
+}
+
+document.getElementById('pushHeadBtn')?.addEventListener('click', () => togglePush());
 
 function base64UrlToBytes(str) {
   const b64 = str.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - str.length % 4) % 4);
@@ -596,6 +615,7 @@ let installEvent = null;
 
 function showInstallBtn(show) {
   installBtn.hidden = isStandalone || !show;
+  updatePushHeadBtn();
 }
 
 // Yükleme düğmesi olmayan tarayıcılarda nasıl yükleneceğini anlatır

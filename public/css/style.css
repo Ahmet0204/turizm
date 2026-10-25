@@ -173,11 +173,25 @@ button {
 
 .header-title {
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 16px;
   font-weight: 700;
   color: #fff;
   letter-spacing: 0.3px;
 }
+
+.header-sub-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  color: rgba(255,255,255,0.70);
+}
+
+.header-caret { flex-shrink: 0; }
+.header-logo.dept-pick { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.header-logo.dept-pick:active { opacity: 0.8; }
 
 .header-subtitle {
   white-space: nowrap;
@@ -218,6 +232,12 @@ button {
   .install-long { display: none; }
 }
 .install-btn:active { opacity: 0.85; }
+@media (max-width: 440px) {
+  .push-long { display: none; }
+}
+@media (max-width: 380px) {
+  .push-word { display: none; }
+}
 
 .icon-btn {
   width: 40px;
@@ -417,31 +437,6 @@ a.news-card:active { transform: scale(0.99); }
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-
-/* Duyurular başlığı + bölüm değiştirme */
-.section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.dept-switch {
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--primary-ink);
-  background: var(--primary-dim);
-  border: none;
-  border-radius: 20px;
-  padding: 5px 12px;
-  margin-top: 4px;
-  max-width: 60%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: pointer;
 }
 
 .dept-choose {

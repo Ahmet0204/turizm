@@ -21,17 +21,26 @@
   <!-- Üst Başlık -->
   <header class="app-header" id="appHeader">
     <div class="header-inner">
-      <div class="header-logo">
+      <div class="header-logo" id="headerLogo">
         <img class="logo-img" src="img/logo.png" alt="ADYÜ Turizm Fakültesi logosu" width="36" height="36">
         <div class="header-titles">
           <span class="header-title">Turizm Fakültesi</span>
-          <span class="header-subtitle" id="headerSub">Öğrenci Portalı</span>
+          <!-- Ana sayfada seçili bölüm; dokununca bölüm değiştirilir -->
+          <span class="header-sub-row">
+            <span class="header-subtitle" id="headerSub">Öğrenci Portalı</span>
+            <svg class="header-caret" id="headerCaret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
         </div>
       </div>
       <div class="header-actions">
         <button class="install-btn" id="installBtn" type="button" hidden>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>
           <span><span class="install-long">Uygulamayı </span>İndir</span>
+        </button>
+        <!-- Bildirimler kapalıyken (kurulu uygulamada) tek dokunuşla açma -->
+        <button class="install-btn" id="pushHeadBtn" type="button" hidden>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span><span class="push-word">Bildirim<span class="push-long">leri</span> </span>Aç</span>
         </button>
         <button class="icon-btn" id="notifBtn" aria-label="Bildirimler">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -52,10 +61,7 @@
       <div class="scroll-content">
 
         <!-- Sitelerden otomatik çekilen duyurular: öğrencinin bölümü, fakülte, üniversite -->
-        <div class="section-head">
-          <div class="section-label">Duyurular</div>
-          <button class="dept-switch" id="deptSwitch" type="button">Bölüm seçin</button>
-        </div>
+        <div class="section-label">Duyurular</div>
         <div class="seg" role="tablist" aria-label="Duyuru kaynağı">
           <button class="seg-btn" type="button" role="tab" id="feedTab-bolum" data-feed="bolum" aria-selected="true" aria-controls="newsList">Bölümden</button>
           <button class="seg-btn" type="button" role="tab" id="feedTab-fakulte" data-feed="fakulte" aria-selected="false" aria-controls="newsList">Fakülteden</button>
