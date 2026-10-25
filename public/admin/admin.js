@@ -19,6 +19,24 @@ function el(tag, className, text) {
   return node;
 }
 
+// Metindeki http(s):// ve www. adreslerini tıklanabilir bağlantıya çevirir (uygulamadakiyle aynı)
+const URL_RE = /\b(?:https?:\/\/|www\.)[^\s<>"]+/gi;
+function linkify(node, text) {
+  let last = 0;
+  for (const m of text.matchAll(URL_RE)) {
+    const url = m[0].replace(/[.,;:!?)\]'"»]+$/, '');
+    node.append(text.slice(last, m.index));
+    const a = el('a', 'text-link', url);
+    a.href = /^www\./i.test(url) ? 'https://' + url : url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    node.append(a);
+    last = m.index + url.length;
+  }
+  node.append(text.slice(last));
+  return node;
+}
+
 async function api(path, { method, body } = {}) {
   const res = await fetch(path, {
     method: method || (body ? 'POST' : 'GET'),
@@ -121,7 +139,7 @@ async function loadPosts(kind) {
     const li = el('li');
     const main = el('div', 'item-main');
     main.append(el('div', 'item-title', a.title), el('div', 'item-meta', `${a.author} · ${formatDate(a.created_at)}${pushStat(a)}`));
-    main.append(el('div', 'item-body', a.body));
+    main.append(linkify(el('div', 'item-body'), a.body));
     const edit = el('button', 'edit-btn', 'Düzenle');
     edit.type = 'button';
     edit.addEventListener('click', () => startPostEdit(kind, a));

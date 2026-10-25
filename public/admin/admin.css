@@ -132,6 +132,8 @@ h3 { font-size: 14px; margin: 20px 0 10px; color: var(--text-2); }
 .muted { color: var(--text-3); font-size: 13px; font-weight: 400; }
 .card > .muted { margin: -6px 0 12px; }
 
+.text-link { color: var(--primary-ink); text-decoration: underline; text-underline-offset: 2px; }
+
 /* Kullanım istatistikleri */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
 .stat { background: var(--surface-2); border-radius: var(--radius-sm); padding: 12px; }
