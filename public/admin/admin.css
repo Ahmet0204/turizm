@@ -132,6 +132,13 @@ h3 { font-size: 14px; margin: 20px 0 10px; color: var(--text-2); }
 .muted { color: var(--text-3); font-size: 13px; font-weight: 400; }
 .card > .muted { margin: -6px 0 12px; }
 
+/* Kullanım istatistikleri */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.stat { background: var(--surface-2); border-radius: var(--radius-sm); padding: 12px; }
+.stat-num { font-size: 24px; font-weight: 700; color: var(--text-1); font-variant-numeric: tabular-nums; }
+.stat-label { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+.card > .stats-note { margin: 12px 0 0; font-size: 12px; }
+
 /* Form */
 .form { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
 .card h2 + .form, .card .muted + .form { margin-top: 0; }

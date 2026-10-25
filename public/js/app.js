@@ -574,6 +574,26 @@ window.addEventListener('appinstalled', () => {
   showInstallBtn(false);
 });
 
+// Kurulu uygulama sayımı: cihaz rastgele bir kimlik üretir, günde en fazla bir kez "açıldım" bildirir
+function pingInstall() {
+  if (!isStandalone) return;
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem('turizm_ping') === today) return;
+    let id = localStorage.getItem('turizm_device');
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem('turizm_device', id);
+    }
+    const platform = isIos ? 'ios' : isAndroid ? 'android' : 'other';
+    fetch('/api/app/ping', postJson({ id, platform }))
+      .then(res => { if (res.ok) localStorage.setItem('turizm_ping', today); })
+      .catch(() => {});
+  } catch {
+    // Depolama kapalıysa sayım yapılmaz
+  }
+}
+
 // iPhone'da ve yükleme sinyali vermeyen Android tarayıcılarında düğme tarif gösterir
 if (isIos) showInstallBtn(true);
 if (isAndroid && !isStandalone) {
@@ -631,6 +651,7 @@ loadNews();
 loadAnnouncements();
 loadMessages();
 initPush();
+pingInstall();
 
 // Bildirime tıklayınca /#duyurular ile açılır
 if (location.hash === '#duyurular') switchTab('announcements');

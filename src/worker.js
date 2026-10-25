@@ -15,6 +15,10 @@ const LOGIN_FAIL_WINDOW = 15 * 60;
 // öğrenci tek IP'den geldiği için bir sınıfın aynı anda kurulumunu engellemeyecek kadar geniş.
 const MAX_SUBSCRIBES = 50;
 const SUBSCRIBE_WINDOW = 10 * 60;
+// Kurulu uygulama açılış sinyali: cihaz başına günde bir kez gelir; aynı gerekçeyle geniş tutuldu
+const MAX_PINGS = 100;
+const PING_WINDOW = 10 * 60;
+const DAY = 24 * 60 * 60;
 // Kayıtlı olmayan e-postada da şifre doğrulama süresi harcansın diye sahte özet
 // (kullanıcı tespitine yol açan zaman sızıntısını önler). Gerçek bir şifreyle eşleşmez.
 const DUMMY_SALT = '00000000000000000000000000000000';
@@ -111,6 +115,12 @@ const POSTS = {
 // Veritabanı güncellemesi henüz uygulanmamışsa (ör. messages tablosu yok) liste boş dönsün
 function missingTable(err) {
   if (String(err).includes('no such table')) return { results: [] };
+  throw err;
+}
+
+// Veritabanı güncellemesi (0004_stats) henüz uygulanmamışsa istatistikler sessizce atlansın
+function missingStats(err) {
+  if (/no such (table|column)/.test(String(err))) return null;
   throw err;
 }
 
@@ -218,6 +228,25 @@ async function route(request, env, url, ctx) {
     return json({ ok: true });
   }
 
+  // Kurulu uygulama açıldı: cihazı kaydet ya da son görülme zamanını güncelle
+  if (path === '/api/app/ping' && method === 'POST') {
+    const pingIp = request.headers.get('CF-Connecting-IP') || 'bilinmiyor';
+    const now = Math.floor(Date.now() / 1000);
+    if (await rateLimited(env, 'ping:' + pingIp, MAX_PINGS, PING_WINDOW, now)) {
+      throw new HttpError(429, 'Çok fazla istek. Birazdan tekrar deneyin.');
+    }
+    await rateBump(env, 'ping:' + pingIp, PING_WINDOW, now);
+    const { id, platform } = await readJson(request);
+    if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/.test(id) || !['ios', 'android', 'other'].includes(platform)) {
+      throw new HttpError(400, 'Geçersiz istek');
+    }
+    await env.DB.prepare(
+      `INSERT INTO devices (id, platform, first_seen, last_seen) VALUES (?1, ?2, ?3, ?3)
+       ON CONFLICT(id) DO UPDATE SET last_seen = excluded.last_seen, platform = excluded.platform`
+    ).bind(id, platform, now).run().catch(missingStats);
+    return json({ ok: true });
+  }
+
   if (path === '/api/push/unsubscribe' && method === 'POST') {
     const { endpoint } = await readJson(request);
     await env.DB.prepare('DELETE FROM subscriptions WHERE endpoint = ?').bind(String(endpoint)).run();
@@ -242,7 +271,16 @@ async function route(request, env, url, ctx) {
 
   if (path === '/api/admin/me' && method === 'GET') {
     const { n } = await env.DB.prepare('SELECT COUNT(*) AS n FROM subscriptions').first();
-    return json({ ...publicAdmin(admin), subscribers: n });
+    const now = Math.floor(Date.now() / 1000);
+    const devices = await env.DB.prepare(
+      `SELECT COUNT(*) AS total,
+              COALESCE(SUM(last_seen >= ?1), 0) AS active7,
+              COALESCE(SUM(last_seen >= ?2), 0) AS active30,
+              COALESCE(SUM(platform = 'ios'), 0) AS ios,
+              COALESCE(SUM(platform = 'android'), 0) AS android
+       FROM devices`
+    ).bind(now - 7 * DAY, now - 30 * DAY).first().catch(missingStats);
+    return json({ ...publicAdmin(admin), subscribers: n, devices });
   }
 
   // Duyurular ve mesajlar: aynı yapı, farklı tablo. Gönderen adını yönetici seçer.
@@ -262,6 +300,15 @@ async function route(request, env, url, ctx) {
   if (postMatch) {
     const kind = POSTS[postMatch[1]];
     const id = postMatch[2] ? Number(postMatch[2]) : null;
+
+    // Panel listesi: herkese açık listeye ek olarak bildirim sayılarını da içerir
+    if (!id && method === 'GET') {
+      const { results } = await env.DB.prepare(
+        `SELECT * FROM ${kind.table} ORDER BY id DESC LIMIT 50`
+      ).all().catch(missingTable);
+      return json(results);
+    }
+
     if (!await hasTable(env, kind.table)) {
       throw new HttpError(503, 'Mesajlar henüz etkin değil: veritabanı güncellemesi (0003_messages) uygulanmalı');
     }
@@ -277,6 +324,10 @@ async function route(request, env, url, ctx) {
       const push = data.notify
         ? await broadcast(env, { title: kind.pushTitle(author, title), body: body.slice(0, 180), url: kind.url })
         : null;
+      if (push) {
+        await env.DB.prepare(`UPDATE ${kind.table} SET push_sent = ?, push_total = ? WHERE id = ?`)
+          .bind(push.sent, push.total, row.id).run().catch(missingStats);
+      }
       return json({ id: row.id, push }, 201);
     }
 

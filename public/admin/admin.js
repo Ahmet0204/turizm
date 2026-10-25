@@ -84,6 +84,21 @@ async function showPanel(admin) {
 async function refreshMe() {
   const data = await api('/api/admin/me');
   document.querySelectorAll('.sub-count').forEach(n => { n.textContent = `(${data.subscribers} abone)`; });
+  const d = data.devices;
+  const stat = (num, label) => {
+    const box = el('div', 'stat');
+    box.append(el('div', 'stat-num', String(num)), el('div', 'stat-label', label));
+    return box;
+  };
+  $('#usageStats').replaceChildren(...(d
+    ? [stat(d.total, `Kurulu uygulama (iPhone ${d.ios}, Android ${d.android})`), stat(d.active30, 'Son 30 günde açan'),
+       stat(d.active7, 'Son 7 günde açan'), stat(data.subscribers, 'Bildirimi açık')]
+    : [stat(data.subscribers, 'Bildirimi açık')]));
+}
+
+function pushStat(a) {
+  if (a.push_total == null) return '';
+  return a.push_total ? ` · Bildirim: ${a.push_sent}/${a.push_total} cihaza iletildi` : ' · Bildirim: abone yoktu';
 }
 
 // ── Duyurular ve mesajlar: aynı form/liste yapısı ──
@@ -97,7 +112,7 @@ const postForm = kind => $(`#${POSTS[kind].p}Form`);
 async function loadPosts(kind) {
   const k = POSTS[kind];
   const list = $(`#${k.p}List`);
-  const items = await api(`/api/${kind}`);
+  const items = await api(`/api/admin/${kind}`);
   if (!items.length) {
     list.replaceChildren(el('li', 'empty', `Henüz ${k.noun} yok.`));
     return;
@@ -105,7 +120,7 @@ async function loadPosts(kind) {
   list.replaceChildren(...items.map(a => {
     const li = el('li');
     const main = el('div', 'item-main');
-    main.append(el('div', 'item-title', a.title), el('div', 'item-meta', `${a.author} · ${formatDate(a.created_at)}`));
+    main.append(el('div', 'item-title', a.title), el('div', 'item-meta', `${a.author} · ${formatDate(a.created_at)}${pushStat(a)}`));
     main.append(el('div', 'item-body', a.body));
     const edit = el('button', 'edit-btn', 'Düzenle');
     edit.type = 'button';
